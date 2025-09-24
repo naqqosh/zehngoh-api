@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passkey Test</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; }
+      button { padding: 10px 16px; margin: 6px 0; }
+      input { padding: 8px; width: 100%; margin: 6px 0; }
+      .row { margin: 18px 0; }
+      code { background: #f4f4f4; padding: 2px 6px; }
+    </style>
+  </head>
+  <body>
+    <h2>Passkey MVP (Local Test)</h2>
+    <div class="row">
+      <label>Display name (optional):</label>
+      <input id="displayName" placeholder="User display name" />
+    </div>
+    <div class="row">
+      <button id="btnReg">Register Passkey</button>
+    </div>
+    <div class="row">
+      <button id="btnAuth">Login with Passkey</button>
+    </div>
+    <div class="row">
+      <div>Token:</div>
+      <code id="out"></code>
+    </div>
+    <script>
+      function toBase64Url(buf) {
+        let str = btoa(String.fromCharCode(...new Uint8Array(buf)))
+        return str.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+      }
+      function fromBase64Url(b64url) {
+        const pad = '='.repeat((4 - (b64url.length % 4 || 4)) % 4)
+        const base64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/')
+        const binStr = atob(base64)
+        const bytes = new Uint8Array(binStr.length)
+        for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i)
+        return bytes.buffer
+      }
+
+      async function reg() {
+        const dn = document.getElementById('displayName').value || undefined
+        const res = await fetch('/api/auth/webauthn/register/options', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: dn })
+        }).then(r => r.json())
+        const { sessionId, publicKey } = res
+        if (publicKey.challenge && typeof publicKey.challenge === 'string') {
+          publicKey.challenge = fromBase64Url(publicKey.challenge)
+        }
+        if (publicKey.user && typeof publicKey.user.id === 'string') {
+          publicKey.user.id = fromBase64Url(publicKey.user.id)
+        }
+        const cred = await navigator.credentials.create({ publicKey })
+        const clientDataJSON = toBase64Url(cred.response.clientDataJSON)
+        const attestationObject = toBase64Url(cred.response.attestationObject)
+        const id = cred.id
+        const rawId = toBase64Url(cred.rawId)
+        const type = cred.type
+        const response = { id, rawId, type, response: { clientDataJSON, attestationObject }, clientExtensionResults: {} }
+        const v = await fetch('/api/auth/webauthn/register/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, response })
+        }).then(r => r.json())
+        document.getElementById('out').innerText = v.token || JSON.stringify(v)
+      }
+
+      async function auth() {
+        const res = await fetch('/api/auth/webauthn/login/options', { method: 'POST' }).then(r => r.json())
+        const { sessionId, publicKey } = res
+        if (publicKey.challenge && typeof publicKey.challenge === 'string') {
+          publicKey.challenge = fromBase64Url(publicKey.challenge)
+        }
+        const assertion = await navigator.credentials.get({ publicKey })
+        const clientDataJSON = toBase64Url(assertion.response.clientDataJSON)
+        const authenticatorData = toBase64Url(assertion.response.authenticatorData)
+        const signature = toBase64Url(assertion.response.signature)
+        const userHandle = assertion.response.userHandle ? toBase64Url(assertion.response.userHandle) : null
+        const id = assertion.id
+        const rawId = toBase64Url(assertion.rawId)
+        const type = assertion.type
+        const response = { id, rawId, type, response: { clientDataJSON, authenticatorData, signature, userHandle }, clientExtensionResults: {} }
+        const v = await fetch('/api/auth/webauthn/login/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, response })
+        }).then(r => r.json())
+        document.getElementById('out').innerText = v.token || JSON.stringify(v)
+      }
+
+      document.getElementById('btnReg').addEventListener('click', reg)
+      document.getElementById('btnAuth').addEventListener('click', auth)
+    </script>
+  </body>
+  </html>
