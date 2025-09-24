@@ -36,8 +36,8 @@ async function bootstrap() {
 
   // Serve static media from seller-api's media folder so UI can load images
   try {
-    const repoRoot = join(process.cwd(), "..", "..");
-    const sellerMedia = join(repoRoot, "..", "seller-api", "media");
+    const repoRoot = join(process.cwd(), "..");
+    const sellerMedia = join(repoRoot, "seller-api", "media");
     app.use("/media", express.static(sellerMedia));
   } catch {}
   // Serve local public assets (e.g., WebAuthn test page)
