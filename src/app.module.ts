@@ -10,6 +10,7 @@ import { OrdersModule } from './orders/orders.module'
 import { LookupsModule } from './lookups/lookups.module'
 import { WebAuthnModule } from './auth/webauthn.module'
 import { FeedbackModule } from './feedback/feedback.module'
+import { ReviewsModule } from './reviews/reviews.module'
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { FeedbackModule } from './feedback/feedback.module'
     LookupsModule,
     WebAuthnModule,
     FeedbackModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}
