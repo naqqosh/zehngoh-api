@@ -11,6 +11,7 @@ import { LookupsModule } from './lookups/lookups.module'
 import { WebAuthnModule } from './auth/webauthn.module'
 import { FeedbackModule } from './feedback/feedback.module'
 import { ReviewsModule } from './reviews/reviews.module'
+import { UploadModule } from './upload/upload.module'
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ReviewsModule } from './reviews/reviews.module'
     WebAuthnModule,
     FeedbackModule,
     ReviewsModule,
+    UploadModule,
   ],
 })
 export class AppModule {}
