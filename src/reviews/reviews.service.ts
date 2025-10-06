@@ -80,6 +80,14 @@ export class ReviewsService {
             { delivery: { deliveredAt: { not: null } } },
           ],
         },
+        review: null,
+        product: {
+          orderItemReviews: {
+            none: {
+              userId,
+            },
+          },
+        },
       },
       orderBy: [
         { order: { createdAt: "desc" } },
@@ -88,9 +96,15 @@ export class ReviewsService {
       include: orderItemListInclude,
     });
 
-    return items
-      .filter((item) => this.isOrderDelivered(item.order))
-      .map((item) => this.mapOrderItemForList(item));
+    const uniqueByProduct = new Map<number, OrderItemListPayload>();
+    for (const item of items) {
+      if (!this.isOrderDelivered(item.order)) continue;
+      if (!uniqueByProduct.has(item.productId)) {
+        uniqueByProduct.set(item.productId, item);
+      }
+    }
+
+    return Array.from(uniqueByProduct.values()).map((item) => this.mapOrderItemForList(item));
   }
 
   async getOrderItemReview(userId: number, orderItemId: number) {
@@ -182,12 +196,7 @@ export class ReviewsService {
   }
 
   private mapOrderItemForList(item: OrderItemListPayload) {
-    const base = this.mapOrderItemBase(item);
-    return {
-      ...base,
-      hasReview: Boolean(item.review),
-      reviewId: item.review?.id ?? null,
-    };
+    return this.mapOrderItemBase(item);
   }
 
   private mapOrderItemWithReview(item: OrderItemWithReviewPayload) {
@@ -221,14 +230,6 @@ export class ReviewsService {
   }
 
   private mapOrderItemBase(item: OrderItemListPayload | OrderItemWithReviewPayload) {
-    const category = item.product.category;
-    const parent = category?.parent;
-    const categoryUz = parent?.nameUz ?? category?.nameUz ?? null;
-    const categoryRu = parent?.nameRu ?? category?.nameRu ?? null;
-    const subCategoryUz = parent ? category?.nameUz ?? null : null;
-    const subCategoryRu = parent ? category?.nameRu ?? null : null;
-    const deliveredAt = this.resolveDeliveredAt(item.order);
-
     return {
       orderItemId: item.id,
       orderId: item.orderId,
@@ -237,11 +238,6 @@ export class ReviewsService {
       productName: item.product.nameUz,
       productNameRu: item.product.nameRu,
       productImage: item.product.images[0]?.imageUrl ?? null,
-      category: categoryUz,
-      categoryRu,
-      subCategory: subCategoryUz,
-      subCategoryRu,
-      deliveredAt,
     };
   }
 
