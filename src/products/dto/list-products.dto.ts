@@ -19,6 +19,11 @@ export class ListProductsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  sellerId?: number
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   @Min(1)
   @Max(100)
   pageSize?: number = 20
@@ -33,4 +38,3 @@ export class ListProductsDto {
   @IsString()
   sort?: 'new' | 'price_asc' | 'price_desc'
 }
-
