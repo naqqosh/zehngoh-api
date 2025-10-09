@@ -11,6 +11,7 @@ export class ProductsService {
     const where: any = { status: 1 }
     if (query.categoryId) where.categoryId = query.categoryId
     if (query.brandId) where.brandId = query.brandId
+    if (query.sellerId) where.sellerId = query.sellerId
     if (query.search) {
       const s = query.search
       where.OR = [
@@ -79,7 +80,15 @@ export class ProductsService {
       descriptionRu: product.descriptionRu,
       images: product.images.map((i: any) => ({ url: i.imageUrl, blur: i.blurUrl })),
       category: { id: product.categoryId, nameUz: product.category.nameUz, nameRu: product.category.nameRu },
-      seller: { id: product.sellerId, storeName: product.seller.storeName },
+      seller: {
+        id: product.sellerId,
+        storeName: product.seller.storeName,
+        storeNameUz: product.seller.storeNameUz,
+        storeNameRu: product.seller.storeNameRu,
+        slug: product.seller.slug,
+        avatarUrl: product.seller.avatarUrl,
+        avatarBlurUrl: product.seller.avatarBlurUrl,
+      },
       variants: product.variants.map((v: any) => ({ id: v.id, sku: v.sku, priceUzs: v.priceUzs.toString() })),
     }
   }

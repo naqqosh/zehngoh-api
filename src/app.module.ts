@@ -12,6 +12,7 @@ import { WebAuthnModule } from './auth/webauthn.module'
 import { FeedbackModule } from './feedback/feedback.module'
 import { ReviewsModule } from './reviews/reviews.module'
 import { UploadModule } from './upload/upload.module'
+import { ShopsModule } from './shops/shops.module'
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UploadModule } from './upload/upload.module'
     FeedbackModule,
     ReviewsModule,
     UploadModule,
+    ShopsModule,
   ],
 })
 export class AppModule {}

@@ -12,7 +12,7 @@ export class OrdersService {
 
   async list(userId: number) {
     const orders = await this.prisma.order.findMany({
-      where: { userId },
+      where: { userId, status: "pending" },
       orderBy: { createdAt: "desc" },
       include: { items: true },
     });
