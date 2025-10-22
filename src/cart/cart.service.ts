@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { AddItemDto } from './dto/add-item.dto'
 import { Prisma } from 'shared-db'
@@ -76,8 +76,13 @@ export class CartService {
 
   async addItem(userId: number, dto: AddItemDto) {
     const cart = await this.ensureActiveCart(userId)
-    // Ensure product exists
-    await this.prisma.product.findUniqueOrThrow({ where: { id: dto.productId } })
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      select: { status: true, moderationStatus: true },
+    })
+    if (!product || product.status !== 1 || product.moderationStatus !== 'APPROVED') {
+      throw new BadRequestException("Mahsulot savatga qo'shish uchun mavjud emas")
+    }
     const quantity = dto.quantity ?? 1
     const createData: Prisma.CartItemUncheckedCreateInput = {
       cartId: cart.id,
