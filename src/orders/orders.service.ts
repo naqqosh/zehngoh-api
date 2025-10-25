@@ -1,14 +1,21 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
+import { OrderBotGateway } from "../bot/order-bot.gateway";
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(OrdersService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly orderBotGateway: OrderBotGateway,
+  ) {}
 
   async list(userId: number) {
     const orders = await this.prisma.order.findMany({
@@ -149,6 +156,16 @@ export class OrdersService {
     if (cart)
       await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
+    void this.dispatchOrderNotification({
+      order,
+      items: itemsData,
+      products,
+      dto,
+      subtotal,
+      discount,
+      total,
+    });
+
     return { orderId: order.id };
   }
 
@@ -161,5 +178,52 @@ export class OrdersService {
       where: { id: order.id },
       data: { status: "cancelled" },
     });
+  }
+
+  private async dispatchOrderNotification(params: {
+    order: any;
+    items: Array<{
+      productId: number;
+      quantity: number;
+      unitPriceUzs: number;
+      totalPriceUzs: number;
+    }>;
+    products: Array<{ id: number; nameUz?: string | null; nameRu?: string | null }>;
+    dto: CreateOrderDto;
+    subtotal: number;
+    discount: number;
+    total: number;
+  }) {
+    try {
+      const items = params.items.map((item) => {
+        const product = params.products.find((p: any) => p.id === item.productId);
+        const name = product?.nameUz ?? product?.nameRu ?? `Mahsulot #${item.productId}`;
+        return {
+          productId: item.productId,
+          name,
+          quantity: item.quantity,
+          totalPrice: item.totalPriceUzs,
+        };
+      });
+
+      await this.orderBotGateway.notifyOrderCreated({
+        orderId: params.order.id,
+        createdAt: params.order.createdAt,
+        customer: {
+          name: params.dto.customerInfo.name,
+          phone: params.dto.customerInfo.phone,
+          notes: params.dto.customerInfo.notes,
+        },
+        paymentMethod: params.dto.paymentMethod,
+        deliverySlot: undefined,
+        subtotal: params.subtotal,
+        discount: params.discount,
+        total: params.total,
+        items,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Failed to notify Telegram bot about order #${params.order.id}: ${message}`);
+    }
   }
 }

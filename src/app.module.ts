@@ -13,6 +13,7 @@ import { FeedbackModule } from './feedback/feedback.module'
 import { ReviewsModule } from './reviews/reviews.module'
 import { UploadModule } from './upload/upload.module'
 import { ShopsModule } from './shops/shops.module'
+import { BotModule } from './bot/bot.module'
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ShopsModule } from './shops/shops.module'
     ReviewsModule,
     UploadModule,
     ShopsModule,
+    BotModule,
   ],
 })
 export class AppModule {}
