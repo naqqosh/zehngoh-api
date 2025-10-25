@@ -25,6 +25,8 @@ export class WishlistService {
       nameRu: i.product.nameRu,
       priceUzs: i.product.priceUzs.toString(),
       imageUrl: i.product.images[0]?.imageUrl ?? null,
+      status: i.product.status,
+      moderationStatus: i.product.moderationStatus,
     }))
   }
 
