@@ -53,6 +53,7 @@ export class ProductsService {
         priceUzs: p.priceUzs.toString(),
         slug: p.slug,
         imageUrl: p.images[0]?.imageUrl ?? null,
+        imageBlurUrl: p.images[0]?.blurUrl ?? null,
         status: p.status,
         moderationStatus: p.moderationStatus,
       })),
