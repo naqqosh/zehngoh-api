@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common'
+import { Body, Controller, HttpCode, Post, Req, Res } from '@nestjs/common'
 import { WebAuthnService } from './webauthn.service'
-import { JwtService } from '@nestjs/jwt'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import { AuthService } from './auth.service'
+import { setRefreshTokenCookie } from './refresh-token.util'
 
 function originFromReq(req: Request): { origin?: string; rpID?: string } {
   const o = (req.headers['origin'] as string | undefined) || undefined
@@ -16,7 +17,7 @@ function originFromReq(req: Request): { origin?: string; rpID?: string } {
 
 @Controller('auth/webauthn')
 export class WebAuthnController {
-  constructor(private webauthn: WebAuthnService, private jwt: JwtService) {}
+  constructor(private webauthn: WebAuthnService, private auth: AuthService) {}
 
   @Post('register/options')
   @HttpCode(200)
@@ -38,11 +39,14 @@ export class WebAuthnController {
       response: any
       deviceInfo?: string
     },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const { userId } = await this.webauthn.verifyRegistrationResponse(body.sessionId, body.response)
-    const payload = { id: userId, phone: null, role: 'user' as const }
-    const token = await this.jwt.signAsync(payload)
-    return { token, user: { id: userId, phone: null, fullName: null } }
+    const deviceInfo = body.deviceInfo || (req.headers['user-agent'] as string | undefined)
+    const { accessToken, refreshToken, user } = await this.auth.createSessionForUser(userId, deviceInfo)
+    setRefreshTokenCookie(res, refreshToken)
+    return { token: accessToken, user }
   }
 
   @Post('login/options')
@@ -54,10 +58,15 @@ export class WebAuthnController {
   }
 
   @Post('login/verify')
-  async authVerify(@Body() body: { sessionId: string; response: any; deviceInfo?: string }) {
+  async authVerify(
+    @Body() body: { sessionId: string; response: any; deviceInfo?: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { userId } = await this.webauthn.verifyAuthenticationResponse(body.sessionId, body.response)
-    const payload = { id: userId, phone: null, role: 'user' as const }
-    const token = await this.jwt.signAsync(payload)
-    return { token, user: { id: userId, phone: null, fullName: null } }
+    const deviceInfo = body.deviceInfo || (req.headers['user-agent'] as string | undefined)
+    const { accessToken, refreshToken, user } = await this.auth.createSessionForUser(userId, deviceInfo)
+    setRefreshTokenCookie(res, refreshToken)
+    return { token: accessToken, user }
   }
 }
