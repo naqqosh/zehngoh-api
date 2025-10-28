@@ -12,10 +12,11 @@ console.log("AuthModule loaded with JWT_SECRET:", process.env.JWT_SECRET);
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || "dev_secret",
-      signOptions: { expiresIn: "30d" },
+      signOptions: { expiresIn: "15m" },
     }),
   ],
   controllers: [AuthController, TelegramGatewayController],
   providers: [AuthService, TelegramGatewayService],
+  exports: [AuthService],
 })
 export class AuthModule {}
