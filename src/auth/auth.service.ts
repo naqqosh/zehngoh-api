@@ -1,147 +1,313 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common'
-import { PrismaService } from '../prisma/prisma.service'
-import { JwtService } from '@nestjs/jwt'
-import * as dayjs from 'dayjs'
-import { TelegramGatewayService } from './telegram-gateway.service'
-import { OAuth2Client } from 'google-auth-library'
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { JwtService } from "@nestjs/jwt";
+import * as dayjs from "dayjs";
+import { TelegramGatewayService } from "./telegram-gateway.service";
+import { OAuth2Client } from "google-auth-library";
+import { createHash, randomBytes } from "crypto";
+import type { User } from "shared-db";
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
-    private telegramGateway: TelegramGatewayService,
+    private telegramGateway: TelegramGatewayService
   ) {}
 
+  private readonly refreshTokenTtlDays = Number(
+    process.env.REFRESH_TOKEN_TTL_DAYS || 30
+  );
+  private readonly accessTokenTtl = process.env.ACCESS_TOKEN_TTL || "15m";
+
   private generateCode() {
-    if (process.env.NODE_ENV !== 'production') return '12345'
-    return Math.floor(10000 + Math.random() * 90000).toString()
+    if (process.env.NODE_ENV !== "production") return "12345";
+    return Math.floor(10000 + Math.random() * 90000).toString();
+  }
+
+  private generateRefreshToken() {
+    return randomBytes(48).toString("hex");
+  }
+
+  private hashRefreshToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  private toAuthUser(user: User) {
+    return {
+      id: user.id,
+      phone: user.phone ?? null,
+      fullName: user.fullName ?? null,
+    };
+  }
+
+  private async signAccessToken(user: User, sessionId: number) {
+    return this.jwt.signAsync(
+      {
+        sub: user.id,
+        id: user.id,
+        phone: user.phone ?? null,
+        role: "user" as const,
+        sid: sessionId,
+      },
+      {
+        expiresIn: this.accessTokenTtl,
+        secret: process.env.JWT_SECRET || "dev_secret",
+      }
+    );
+  }
+
+  private async issueSession(user: User, deviceInfo?: string) {
+    const refreshToken = this.generateRefreshToken();
+    const expiresAt = dayjs().add(this.refreshTokenTtlDays, "day").toDate();
+    const session = await this.prisma.userSession.create({
+      data: {
+        userId: user.id,
+        token: this.hashRefreshToken(refreshToken),
+        deviceInfo: deviceInfo || null,
+        expiresAt,
+      },
+    });
+    const accessToken = await this.signAccessToken(user, session.id);
+    return {
+      accessToken,
+      refreshToken,
+      user: this.toAuthUser(user),
+    };
+  }
+
+  private async rotateSession(
+    sessionId: number,
+    user: User,
+    deviceInfo?: string
+  ) {
+    const refreshToken = this.generateRefreshToken();
+    const expiresAt = dayjs().add(this.refreshTokenTtlDays, "day").toDate();
+    await this.prisma.userSession.update({
+      where: { id: sessionId },
+      data: {
+        token: this.hashRefreshToken(refreshToken),
+        expiresAt,
+        revokedAt: null,
+        deviceInfo: deviceInfo || null,
+        lastSeen: new Date(),
+      },
+    });
+    const accessToken = await this.signAccessToken(user, sessionId);
+    return {
+      accessToken,
+      refreshToken,
+      user: this.toAuthUser(user),
+    };
   }
 
   async sendCode(phone: string) {
     // Normalize to E.164, but store digits in DB; use E.164 for gateway
-    const normalizedDigits = phone.replace(/\D/g, '')
+    const normalizedDigits = phone.replace(/\D/g, "");
     // Ensure user exists (create on-demand)
-    let user = await this.prisma.user.findUnique({ where: { phone: normalizedDigits } })
+    let user = await this.prisma.user.findUnique({
+      where: { phone: normalizedDigits },
+    });
     if (!user) {
-      user = await this.prisma.user.create({ data: { phone: normalizedDigits } })
+      user = await this.prisma.user.create({
+        data: { phone: normalizedDigits },
+      });
     }
 
     // rate-limit: 60s between sends
     const last = await this.prisma.otpCode.findFirst({
       where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (last && dayjs().diff(dayjs(last.createdAt), 'second') < 60 && !last.usedAt) {
-      const wait = 60 - dayjs().diff(dayjs(last.createdAt), 'second')
-      throw new BadRequestException(`Iltimos, ${wait} soniyadan so'ng qaytadan urinib ko'ring`)
+      orderBy: { createdAt: "desc" },
+    });
+    if (
+      last &&
+      dayjs().diff(dayjs(last.createdAt), "second") < 60 &&
+      !last.usedAt
+    ) {
+      const wait = 60 - dayjs().diff(dayjs(last.createdAt), "second");
+      throw new BadRequestException(
+        `Iltimos, ${wait} soniyadan so'ng qaytadan urinib ko'ring`
+      );
     }
 
     // Invalidate previous active codes
-    await this.prisma.otpCode.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } })
+    await this.prisma.otpCode.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
 
-    const code = this.generateCode()
-    const expiresAt = dayjs().add(5, 'minute').toDate()
+    const code = this.generateCode();
+    const expiresAt = dayjs().add(5, "minute").toDate();
     const record = await this.prisma.otpCode.create({
-      data: { userId: user.id, code, expiresAt, purpose: 'login', attempts: 0, provider: 'telegram_gateway' },
-    })
+      data: {
+        userId: user.id,
+        code,
+        expiresAt,
+        purpose: "login",
+        attempts: 0,
+        provider: "telegram_gateway",
+      },
+    });
 
     // Send via Telegram Gateway
     try {
-      const phoneE164 = this.telegramGateway.normalizePhone(normalizedDigits)
-      const res = await this.telegramGateway.sendOtp(phoneE164, code, 300)
+      const phoneE164 = this.telegramGateway.normalizePhone(normalizedDigits);
+      const res = await this.telegramGateway.sendOtp(phoneE164, code, 300);
       await this.prisma.otpCode.update({
         where: { id: record.id },
-        data: { gatewayMessageId: res.id ?? null, deliveryStatus: res.status ?? null },
-      })
+        data: {
+          gatewayMessageId: res.id ?? null,
+          deliveryStatus: res.status ?? null,
+        },
+      });
     } catch (e) {
       // Rollback usage so user can retry later
-      await this.prisma.otpCode.update({ where: { id: record.id }, data: { usedAt: new Date() } })
-      throw e
+      await this.prisma.otpCode.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      });
+      throw e;
     }
 
-    return { expiresInSec: 5 * 60, resendAfterSec: 60 }
+    return { expiresInSec: 5 * 60, resendAfterSec: 60 };
   }
 
   async verify(phone: string, code: string, deviceInfo?: string) {
-    const normalized = phone.replace(/\D/g, '')
-    const user = await this.prisma.user.findUnique({ where: { phone: normalized } })
-    if (!user) throw new UnauthorizedException('User not found')
+    const normalized = phone.replace(/\D/g, "");
+    const user = await this.prisma.user.findUnique({
+      where: { phone: normalized },
+    });
+    if (!user) throw new UnauthorizedException("User not found");
 
     const otp = await this.prisma.otpCode.findFirst({
-      where: { userId: user.id, usedAt: null, purpose: 'login' },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (!otp) throw new UnauthorizedException('Invalid code')
+      where: { userId: user.id, usedAt: null, purpose: "login" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!otp) throw new UnauthorizedException("Invalid code");
     if (dayjs(otp.expiresAt).isBefore(dayjs())) {
-      await this.prisma.otpCode.update({ where: { id: otp.id }, data: { usedAt: new Date() } })
-      throw new UnauthorizedException('Code expired')
+      await this.prisma.otpCode.update({
+        where: { id: otp.id },
+        data: { usedAt: new Date() },
+      });
+      throw new UnauthorizedException("Code expired");
     }
 
-    const MAX_ATTEMPTS = 3
+    const MAX_ATTEMPTS = 3;
     if (otp.attempts >= MAX_ATTEMPTS) {
-      await this.prisma.otpCode.update({ where: { id: otp.id }, data: { usedAt: new Date() } })
-      throw new UnauthorizedException('Too many attempts')
+      await this.prisma.otpCode.update({
+        where: { id: otp.id },
+        data: { usedAt: new Date() },
+      });
+      throw new UnauthorizedException("Too many attempts");
     }
 
     if (otp.code !== code) {
-      await this.prisma.otpCode.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } })
-      throw new UnauthorizedException(`Invalid code. ${MAX_ATTEMPTS - (otp.attempts + 1)} attempts left`)
+      await this.prisma.otpCode.update({
+        where: { id: otp.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new UnauthorizedException(
+        `Invalid code. ${MAX_ATTEMPTS - (otp.attempts + 1)} attempts left`
+      );
     }
 
-    await this.prisma.otpCode.update({ where: { id: otp.id }, data: { usedAt: new Date() } })
+    await this.prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { usedAt: new Date() },
+    });
 
-    // create session token row and JWT
-    const payload = { id: user.id, phone: user.phone, role: 'user' as const }
-    const token = await this.jwt.signAsync(payload)
-
-    const expiresAt = dayjs().add(30, 'day').toDate()
-    await this.prisma.userSession.create({
-      data: { userId: user.id, token, deviceInfo, expiresAt },
-    })
-
-    return { token, user }
+    return this.issueSession(user, deviceInfo);
   }
 
   async getProfile(userId: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } })
-    if (!user) throw new UnauthorizedException()
-    return { id: user.id, phone: user.phone, fullName: user.fullName ?? null }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    return { id: user.id, phone: user.phone, fullName: user.fullName ?? null };
   }
 
   async verifyGoogle(credential: string, deviceInfo?: string) {
-    const clientId = process.env.GOOGLE_CLIENT_ID
-    if (!clientId) throw new BadRequestException('Missing GOOGLE_CLIENT_ID')
-    const client = new OAuth2Client(clientId)
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId })
-    const payload = ticket.getPayload()
-    if (!payload) throw new UnauthorizedException('Invalid Google credential')
-    const { sub, email, name, email_verified } = payload
-    if (!email || email_verified === false) throw new UnauthorizedException('Email not verified')
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) throw new BadRequestException("Missing GOOGLE_CLIENT_ID");
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload) throw new UnauthorizedException("Invalid Google credential");
+    const { sub, email, name, email_verified } = payload;
+    if (!email || email_verified === false)
+      throw new UnauthorizedException("Email not verified");
 
     // Find or create user
-    let user = await this.prisma.user.findFirst({ where: { OR: [{ googleId: sub }, { email }] } })
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ googleId: sub }, { email }] },
+    });
     if (!user) {
-      user = await this.prisma.user.create({ data: { email, fullName: name || null, googleId: sub } })
+      user = await this.prisma.user.create({
+        data: { email, fullName: name || null, googleId: sub },
+      });
     } else if (!user.googleId) {
-      user = await this.prisma.user.update({ where: { id: user.id }, data: { googleId: sub, fullName: user.fullName || name || null } })
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: sub, fullName: user.fullName || name || null },
+      });
     }
 
-    // Issue JWT + session
-    const jwtPayload = { id: user.id, phone: user.phone ?? null, role: 'user' as const }
-    const token = await this.jwt.signAsync(jwtPayload)
-    const expiresAt = dayjs().add(30, 'day').toDate()
-    await this.prisma.userSession.create({ data: { userId: user.id, token, deviceInfo, expiresAt } })
-
-    return { token, user }
+    return this.issueSession(user, deviceInfo);
   }
 
-  async logout(token: string) {
-    if (!token) throw new BadRequestException('Missing token')
-    const session = await this.prisma.userSession.findUnique({ where: { token } })
-    if (!session) return { success: true }
-    if (session.revokedAt) return { success: true }
-    await this.prisma.userSession.update({ where: { token }, data: { revokedAt: new Date() } })
-    return { success: true }
+  async refreshSession(refreshToken: string, deviceInfo?: string) {
+    const hashed = this.hashRefreshToken(refreshToken);
+    const session = await this.prisma.userSession.findUnique({
+      where: { token: hashed },
+    });
+    if (!session || session.revokedAt)
+      throw new UnauthorizedException("Invalid session");
+    if (dayjs(session.expiresAt).isBefore(dayjs())) {
+      await this.prisma.userSession.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException("Session expired");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: session.userId },
+    });
+    if (!user) throw new UnauthorizedException("User not found");
+
+    return this.rotateSession(
+      session.id,
+      user,
+      deviceInfo ?? session.deviceInfo ?? undefined
+    );
+  }
+
+  async logout(sessionId: number) {
+    if (!sessionId) return { success: true };
+    const session = await this.prisma.userSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) return { success: true };
+    if (session.revokedAt) return { success: true };
+    await this.prisma.userSession.update({
+      where: { id: sessionId },
+      data: {
+        revokedAt: new Date(),
+        token: this.hashRefreshToken(this.generateRefreshToken()),
+      },
+    });
+    return { success: true };
+  }
+
+  async createSessionForUser(userId: number, deviceInfo?: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException("User not found");
+    return this.issueSession(user, deviceInfo);
   }
 }
