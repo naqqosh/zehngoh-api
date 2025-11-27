@@ -1,7 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "shared-db";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateOrderItemReviewDto, ReviewImageInputDto } from "./dto/create-order-item-review.dto";
+import {
+  CreateOrderItemReviewDto,
+  ReviewImageInputDto,
+} from "./dto/create-order-item-review.dto";
+import { ProductReviewsQueryDto } from "./dto/product-reviews-query.dto";
 
 const REVIEWABLE_ORDER_STATUSES = ["delivered", "completed"];
 
@@ -59,15 +67,93 @@ const orderItemWithReviewInclude = Prisma.validator<Prisma.OrderItemInclude>()({
   },
 });
 
-type OrderItemListPayload = Prisma.OrderItemGetPayload<{ include: typeof orderItemListInclude }>;
+type OrderItemListPayload = Prisma.OrderItemGetPayload<{
+  include: typeof orderItemListInclude;
+}>;
 
-type OrderItemWithReviewPayload = Prisma.OrderItemGetPayload<{ include: typeof orderItemWithReviewInclude }>;
+type OrderItemWithReviewPayload = Prisma.OrderItemGetPayload<{
+  include: typeof orderItemWithReviewInclude;
+}>;
 
 type PreparedReviewImage = { fileId: number | null; imageUrl: string | null };
 
 @Injectable()
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getProductReviews(productId: number, query: ProductReviewsQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const [reviews, total] = await Promise.all([
+      this.prisma.orderItemReview.findMany({
+        where: {
+          productId,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+          images: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              imageUrl: true,
+              position: true,
+            },
+          },
+          sellerReplyAuthor: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      this.prisma.orderItemReview.count({
+        where: {
+          productId,
+        },
+      }),
+    ]);
+
+    return {
+      data: reviews.map((review) => ({
+        id: review.id,
+        userId: review.userId,
+        userName: review.isAnonymous
+          ? "Nomativ foydalanuvchi"
+          : review.user?.fullName || "Foydalanuvchi",
+        overallRating: review.overallRating,
+        qualityRating: review.qualityRating,
+        advantages: review.advantages,
+        disadvantages: review.disadvantages,
+        comment: review.comment,
+        images: review.images,
+        createdAt: review.createdAt.toISOString(),
+        sellerReply: review.sellerReply
+          ? {
+              text: review.sellerReply,
+              authorName: review.sellerReplyAuthor?.fullName || "Do'kon",
+              createdAt: review.sellerReplyCreatedAt?.toISOString(),
+            }
+          : null,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
 
   async listEligible(userId: number) {
     const items = await this.prisma.orderItem.findMany({
@@ -89,10 +175,7 @@ export class ReviewsService {
           },
         },
       },
-      orderBy: [
-        { order: { createdAt: "desc" } },
-        { createdAt: "desc" },
-      ],
+      orderBy: [{ order: { createdAt: "desc" } }, { createdAt: "desc" }],
       include: orderItemListInclude,
     });
 
@@ -104,7 +187,9 @@ export class ReviewsService {
       }
     }
 
-    return Array.from(uniqueByProduct.values()).map((item) => this.mapOrderItemForList(item));
+    return Array.from(uniqueByProduct.values()).map((item) =>
+      this.mapOrderItemForList(item)
+    );
   }
 
   async getOrderItemReview(userId: number, orderItemId: number) {
@@ -124,7 +209,11 @@ export class ReviewsService {
     return this.mapOrderItemWithReview(item);
   }
 
-  async submitReview(userId: number, orderItemId: number, dto: CreateOrderItemReviewDto) {
+  async submitReview(
+    userId: number,
+    orderItemId: number,
+    dto: CreateOrderItemReviewDto
+  ) {
     const item = await this.prisma.orderItem.findFirst({
       where: {
         id: orderItemId,
@@ -229,7 +318,9 @@ export class ReviewsService {
     };
   }
 
-  private mapOrderItemBase(item: OrderItemListPayload | OrderItemWithReviewPayload) {
+  private mapOrderItemBase(
+    item: OrderItemListPayload | OrderItemWithReviewPayload
+  ) {
     return {
       orderItemId: item.id,
       orderId: item.orderId,
@@ -252,7 +343,9 @@ export class ReviewsService {
 
   private resolveOverallRating(dto: CreateOrderItemReviewDto) {
     if (dto.productRating && dto.productRating > 0) return dto.productRating;
-    const average = Math.round((dto.qualityRating + dto.serviceRating + dto.deliveryRating) / 3);
+    const average = Math.round(
+      (dto.qualityRating + dto.serviceRating + dto.deliveryRating) / 3
+    );
     return Math.min(5, Math.max(1, average));
   }
 
@@ -269,13 +362,18 @@ export class ReviewsService {
       const fileId = image.fileId ?? null;
       const imageUrl = this.normalizeText(image.imageUrl) ?? null;
       if (fileId === null && !imageUrl) {
-        throw new BadRequestException(`Image at position ${index} must include a fileId or imageUrl`);
+        throw new BadRequestException(
+          `Image at position ${index} must include a fileId or imageUrl`
+        );
       }
       return { fileId, imageUrl };
     });
   }
 
-  private isOrderDelivered(order: { status: string | null; delivery?: { status?: string | null; deliveredAt?: Date | null } | null }) {
+  private isOrderDelivered(order: {
+    status: string | null;
+    delivery?: { status?: string | null; deliveredAt?: Date | null } | null;
+  }) {
     const status = order.status?.toLowerCase?.();
     if (status && REVIEWABLE_ORDER_STATUSES.includes(status)) return true;
     const deliveryStatus = order.delivery?.status?.toLowerCase?.();
