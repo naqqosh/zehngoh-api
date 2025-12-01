@@ -14,7 +14,7 @@ export class OrdersService {
 
   constructor(
     private prisma: PrismaService,
-    private readonly orderBotGateway: OrderBotGateway,
+    private readonly orderBotGateway: OrderBotGateway
   ) {}
 
   async list(userId: number) {
@@ -180,6 +180,12 @@ export class OrdersService {
     });
   }
 
+  async syncOrderStatus(userId: number, id: number) {
+    const order = await this.prisma.order.findFirst({ where: { id, userId } });
+    if (!order) throw new NotFoundException("Order not found");
+    return order.status;
+  }
+
   private async dispatchOrderNotification(params: {
     order: any;
     items: Array<{
@@ -188,7 +194,11 @@ export class OrdersService {
       unitPriceUzs: number;
       totalPriceUzs: number;
     }>;
-    products: Array<{ id: number; nameUz?: string | null; nameRu?: string | null }>;
+    products: Array<{
+      id: number;
+      nameUz?: string | null;
+      nameRu?: string | null;
+    }>;
     dto: CreateOrderDto;
     subtotal: number;
     discount: number;
@@ -196,8 +206,11 @@ export class OrdersService {
   }) {
     try {
       const items = params.items.map((item) => {
-        const product = params.products.find((p: any) => p.id === item.productId);
-        const name = product?.nameUz ?? product?.nameRu ?? `Mahsulot #${item.productId}`;
+        const product = params.products.find(
+          (p: any) => p.id === item.productId
+        );
+        const name =
+          product?.nameUz ?? product?.nameRu ?? `Mahsulot #${item.productId}`;
         return {
           productId: item.productId,
           name,
@@ -223,7 +236,9 @@ export class OrdersService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`Failed to notify Telegram bot about order #${params.order.id}: ${message}`);
+      this.logger.warn(
+        `Failed to notify Telegram bot about order #${params.order.id}: ${message}`
+      );
     }
   }
 }
