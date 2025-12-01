@@ -32,7 +32,11 @@ export class OrderBotFormatter {
   }
 
   escapeHtml(value: string): string {
-    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   formatPrice(amount: number): string {
@@ -49,7 +53,8 @@ export class OrderBotFormatter {
     const created = dayjs(input.createdAt).format("YYYY-MM-DD HH:mm");
     const customerNotes = input.customer.notes?.trim() || "—";
     const deliverySlot = input.deliverySlot?.trim() || "mavjud emas";
-    const discountLine = input.discount > 0 ? ` (-${this.formatPrice(input.discount)} promo)` : "";
+    const discountLine =
+      input.discount > 0 ? ` (-${this.formatPrice(input.discount)} promo)` : "";
 
     const header = [
       `🆕 Yangi buyurtma #${input.orderId}`,
@@ -73,8 +78,31 @@ export class OrderBotFormatter {
   }
 
   appendStatus(text: string, status: "cancelled" | "delivered"): string {
-    const statusBadge = status === "delivered" ? "✅ Yetkazib berildi" : "⛔ Bekor qilingan";
+    const statusBadge =
+      status === "delivered" ? "✅ Yetkazib berildi" : "⛔ Bekor qilingan";
     if (text.includes(statusBadge)) return text;
     return `${text}\n\n${statusBadge}`;
+  }
+
+  syncStatusBadge(text: string, currentStatus: string): string {
+    // Remove any existing status badges
+    let cleanText = text
+      .replace(/\n\n✅ Yetkazib berildi$/, "")
+      .replace(/\n\n⛔ Bekor qilingan$/, "");
+
+    // Add new badge if status requires one
+    if (currentStatus === "delivered") {
+      return cleanText.includes("✅ Yetkazib berildi")
+        ? cleanText
+        : `${cleanText}\n\n✅ Yetkazib berildi`;
+    }
+    if (currentStatus === "cancelled") {
+      return cleanText.includes("⛔ Bekor qilingan")
+        ? cleanText
+        : `${cleanText}\n\n⛔ Bekor qilingan`;
+    }
+
+    // For pending status, just return the clean text (no badge)
+    return cleanText;
   }
 }
