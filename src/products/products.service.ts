@@ -24,13 +24,13 @@ export class ProductsService {
     const take = query.pageSize ?? 20;
     const skip = ((query.page ?? 1) - 1) * take;
 
-    // Default: premium first (price descending). Keep explicit overrides.
+    // Default: price ascending (lowest to highest). Keep explicit overrides.
     const orderBy: Prisma.ProductOrderByWithRelationInput[] =
       query.sort === "price_asc"
         ? [{ priceUzs: "asc" }]
         : query.sort === "new"
           ? [{ createdAt: "desc" }]
-          : [{ priceUzs: "desc" }];
+          : [{ priceUzs: "asc" }];
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
