@@ -2,12 +2,20 @@ import { Injectable } from "@nestjs/common";
 import { createHmac } from "crypto";
 import type * as TelegramBot from "node-telegram-bot-api";
 import { BotConfigService } from "./bot.config";
-import { OrderBotFormatter, OrderBotItem, OrderBotMessageInput } from "./order-bot.formatter";
+import {
+  OrderBotFormatter,
+  OrderBotItem,
+  OrderBotMessageInput,
+} from "./order-bot.formatter";
 import { TelegramBotService } from "./telegram-bot.service";
 
-export type OrderBotAction = "cancel" | "deliver";
+export type OrderBotAction = "cancel" | "deliver" | "refresh";
 
-export interface OrderBotNotificationInput extends Omit<OrderBotMessageInput, "subtotal" | "discount" | "total" | "items"> {
+export interface OrderBotNotificationInput
+  extends Omit<
+    OrderBotMessageInput,
+    "subtotal" | "discount" | "total" | "items"
+  > {
   subtotal: number;
   discount: number;
   total: number;
@@ -20,7 +28,7 @@ export class OrderBotGateway {
 
   constructor(
     private readonly telegram: TelegramBotService,
-    private readonly config: BotConfigService,
+    private readonly config: BotConfigService
   ) {}
 
   async notifyOrderCreated(input: OrderBotNotificationInput) {
@@ -42,8 +50,20 @@ export class OrderBotGateway {
     const replyMarkup: TelegramBot.InlineKeyboardMarkup = {
       inline_keyboard: [
         [
-          { text: "Bekor qilish", callback_data: this.buildCallbackData("cancel", input.orderId) },
-          { text: "Yetkazib berildi", callback_data: this.buildCallbackData("deliver", input.orderId) },
+          {
+            text: "🔄 Yangilash",
+            callback_data: this.buildCallbackData("refresh", input.orderId),
+          },
+        ],
+        [
+          {
+            text: "Bekor qilish",
+            callback_data: this.buildCallbackData("cancel", input.orderId),
+          },
+          {
+            text: "Yetkazib berildi",
+            callback_data: this.buildCallbackData("deliver", input.orderId),
+          },
         ],
       ],
     };
@@ -55,15 +75,24 @@ export class OrderBotGateway {
     });
   }
 
-  validateCallbackData(data: string): { action: OrderBotAction; orderId: number } | null {
+  validateCallbackData(
+    data: string
+  ): { action: OrderBotAction; orderId: number } | null {
     const [prefix, action, orderIdPart, signature] = data.split(":");
-    if (prefix !== "order" || (action !== "cancel" && action !== "deliver")) return null;
+    if (
+      prefix !== "order" ||
+      (action !== "cancel" && action !== "deliver" && action !== "refresh")
+    )
+      return null;
     const orderId = Number(orderIdPart);
     if (!Number.isFinite(orderId)) return null;
 
     const cfg = this.config.get();
     if (cfg.actionSecret) {
-      const expected = createHmac("sha256", cfg.actionSecret).update(`order:${action}:${orderId}`).digest("hex").slice(0, 8);
+      const expected = createHmac("sha256", cfg.actionSecret)
+        .update(`order:${action}:${orderId}`)
+        .digest("hex")
+        .slice(0, 8);
       if (expected !== signature) return null;
     }
 
@@ -74,7 +103,10 @@ export class OrderBotGateway {
     const base = `order:${action}:${orderId}`;
     const cfg = this.config.get();
     if (!cfg.actionSecret) return base;
-    const signature = createHmac("sha256", cfg.actionSecret).update(base).digest("hex").slice(0, 8);
+    const signature = createHmac("sha256", cfg.actionSecret)
+      .update(base)
+      .digest("hex")
+      .slice(0, 8);
     return `${base}:${signature}`;
   }
 
