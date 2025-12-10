@@ -247,7 +247,7 @@ export class BotActionService {
     // Ensure HTML parsing is enabled to preserve links
     await this.telegram.editMessageText(chatId, messageId, updatedText, {
       parse_mode: "HTML",
-      disable_web_page_preview: false,
+      disable_web_page_preview: true,
       reply_markup: keyboard,
     });
 
