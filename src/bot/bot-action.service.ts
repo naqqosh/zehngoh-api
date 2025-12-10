@@ -236,6 +236,7 @@ export class BotActionService {
     }
 
     // Build updated message with current status badge
+    // Keep the original text with product links intact
     const formatter = new OrderBotFormatter();
     const updatedText = formatter.syncStatusBadge(currentText, order.status);
 
@@ -243,9 +244,10 @@ export class BotActionService {
     const keyboard = this.buildActionKeyboard(orderId, order.status);
 
     // Edit the message with updated status and buttons
+    // Ensure HTML parsing is enabled to preserve links
     await this.telegram.editMessageText(chatId, messageId, updatedText, {
       parse_mode: "HTML",
-      disable_web_page_preview: true,
+      disable_web_page_preview: false,
       reply_markup: keyboard,
     });
 
