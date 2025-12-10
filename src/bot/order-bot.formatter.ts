@@ -85,21 +85,24 @@ export class OrderBotFormatter {
   }
 
   syncStatusBadge(text: string, currentStatus: string): string {
-    // Remove any existing status badges
+    // Remove any existing status badges more robustly
     let cleanText = text
-      .replace(/\n\n✅ Yetkazib berildi$/, "")
-      .replace(/\n\n⛔ Bekor qilingan$/, "");
+      .replace(/\n\n✅ Yetkazib berildi\s*$/, "")
+      .replace(/\n\n⛔ Bekor qilingan\s*$/, "")
+      .trim();
 
     // Add new badge if status requires one
     if (currentStatus === "delivered") {
-      return cleanText.includes("✅ Yetkazib berildi")
-        ? cleanText
-        : `${cleanText}\n\n✅ Yetkazib berildi`;
+      if (cleanText.includes("✅ Yetkazib berildi")) {
+        return cleanText;
+      }
+      return `${cleanText}\n\n✅ Yetkazib berildi`;
     }
     if (currentStatus === "cancelled") {
-      return cleanText.includes("⛔ Bekor qilingan")
-        ? cleanText
-        : `${cleanText}\n\n⛔ Bekor qilingan`;
+      if (cleanText.includes("⛔ Bekor qilingan")) {
+        return cleanText;
+      }
+      return `${cleanText}\n\n⛔ Bekor qilingan`;
     }
 
     // For pending status, just return the clean text (no badge)

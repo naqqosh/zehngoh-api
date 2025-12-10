@@ -113,4 +113,79 @@ export class OrderBotGateway {
   formatStatusMessage(text: string, status: "cancelled" | "delivered"): string {
     return this.formatter.appendStatus(text, status);
   }
+
+  async notifyNotFoundFeedback(input: {
+    id: number;
+    query: string;
+    pageUrl?: string;
+    userAgent?: string;
+    ip?: string;
+    userId?: number;
+    createdAt: Date;
+  }) {
+    const cfg = this.config.get();
+    const message = this.formatNotFoundFeedbackMessage(input);
+
+    await this.telegram.sendMessage(cfg.chatId, message, {
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    });
+  }
+
+  private formatNotFoundFeedbackMessage(input: {
+    id: number;
+    query: string;
+    pageUrl?: string;
+    userAgent?: string;
+    ip?: string;
+    userId?: number;
+    createdAt: Date;
+  }): string {
+    const timestamp = input.createdAt.toLocaleString("uz-UZ", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const userInfo = input.userId
+      ? `👤 User ID: ${input.userId}`
+      : `📍 IP: ${input.ip || "noma'lum"}`;
+
+    const lines = [
+      "❌ <b>Tovar Topilmadi - Feedback</b>",
+      `🕐 ${timestamp}`,
+      "",
+      `🔍 <b>Qidiruv:</b> <code>${this.escapeHtml(input.query)}</code>`,
+    ];
+
+    if (input.pageUrl) {
+      lines.push(
+        `📄 <b>Sahifa:</b> <a href="${this.escapeHtml(input.pageUrl)}">link</a>`
+      );
+    }
+
+    lines.push("");
+    lines.push(userInfo);
+
+    if (input.userAgent) {
+      const ua =
+        input.userAgent.length > 100
+          ? `${input.userAgent.substring(0, 100)}...`
+          : input.userAgent;
+      lines.push(`🖥️ <b>Device:</b> <code>${this.escapeHtml(ua)}</code>`);
+    }
+
+    return lines.join("\n");
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 }

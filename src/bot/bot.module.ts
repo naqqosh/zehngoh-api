@@ -9,7 +9,12 @@ import { TelegramBotService } from "./telegram-bot.service";
 @Module({
   imports: [PrismaModule],
   controllers: [BotWebhookController],
-  providers: [BotConfigService, TelegramBotService, OrderBotGateway, BotActionService],
+  providers: [
+    BotConfigService,
+    TelegramBotService,
+    OrderBotGateway,
+    BotActionService,
+  ],
   exports: [OrderBotGateway],
 })
 export class BotModule {}
