@@ -161,22 +161,7 @@ export class OrderBotGateway {
       `🔍 <b>Qidiruv:</b> <code>${this.escapeHtml(input.query)}</code>`,
     ];
 
-    if (input.pageUrl) {
-      lines.push(
-        `📄 <b>Sahifa:</b> <a href="${this.escapeHtml(input.pageUrl)}">link</a>`
-      );
-    }
-
     lines.push("");
-    lines.push(userInfo);
-
-    if (input.userAgent) {
-      const ua =
-        input.userAgent.length > 100
-          ? `${input.userAgent.substring(0, 100)}...`
-          : input.userAgent;
-      lines.push(`🖥️ <b>Device:</b> <code>${this.escapeHtml(ua)}</code>`);
-    }
 
     return lines.join("\n");
   }
