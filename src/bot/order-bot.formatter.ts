@@ -59,8 +59,10 @@ export class OrderBotFormatter {
 
     const header = [
       `🆕 Yangi buyurtma #${input.orderId}`,
-      `👤 ${this.escapeHtml(input.customer.name)} (${this.escapeHtml(input.customer.phone.replace(/\s/g, ''))})`,
-      ...(input.userName ? [`👤 Buyurtmachi: ${this.escapeHtml(input.userName)}`] : []),
+      `👤 ${this.escapeHtml(input.customer.name)} (${this.escapeHtml(input.customer.phone.replace(/\s/g, ""))})`,
+      ...(input.userName
+        ? [`👤 Buyurtmachi: ${this.escapeHtml(input.userName)}`]
+        : []),
       `🕒 ${created}`,
       "",
       "📦 Buyurtma:",
