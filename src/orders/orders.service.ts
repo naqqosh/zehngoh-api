@@ -157,6 +157,7 @@ export class OrdersService {
       await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
     void this.dispatchOrderNotification({
+      userId,
       order,
       items: itemsData,
       products,
@@ -187,6 +188,7 @@ export class OrdersService {
   }
 
   private async dispatchOrderNotification(params: {
+    userId: number;
     order: any;
     items: Array<{
       productId: number;
@@ -205,6 +207,12 @@ export class OrdersService {
     total: number;
   }) {
     try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { fullName: true },
+      });
+      const userName = user?.fullName || null;
+
       const items = params.items.map((item) => {
         const product = params.products.find(
           (p: any) => p.id === item.productId
@@ -227,6 +235,7 @@ export class OrdersService {
           phone: params.dto.customerInfo.phone,
           notes: params.dto.customerInfo.notes,
         },
+        userName,
         paymentMethod: params.dto.paymentMethod,
         deliverySlot: undefined,
         subtotal: params.subtotal,

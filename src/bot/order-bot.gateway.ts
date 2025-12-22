@@ -37,6 +37,7 @@ export class OrderBotGateway {
       orderId: input.orderId,
       createdAt: input.createdAt,
       customer: input.customer,
+      userName: input.userName,
       paymentMethod: input.paymentMethod,
       deliverySlot: input.deliverySlot,
       subtotal: input.subtotal,
