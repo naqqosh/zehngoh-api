@@ -13,6 +13,7 @@ export interface OrderBotMessageInput {
   orderId: number;
   createdAt: Date;
   customer: { name: string; phone: string; notes?: string | null };
+  userName?: string | null;
   paymentMethod: string;
   deliverySlot?: string | null;
   subtotal: number;
@@ -46,7 +47,7 @@ export class OrderBotFormatter {
   buildItemLine(item: OrderBotItem): string {
     const shortName = this.escapeHtml(this.truncateName(item.name));
     const price = this.formatPrice(item.totalPrice);
-    return `• <a href="https://zehngoh.uz/product/${item.productId}">${shortName}</a> ×${item.quantity} — ${price}`;
+    return `• <a href="https://zehngoh.uz/product/${item.productId}">${shortName}</a> ×${item.quantity} ta — ${price}`;
   }
 
   formatOrderMessage(input: OrderBotMessageInput): OrderBotMessage {
@@ -58,7 +59,8 @@ export class OrderBotFormatter {
 
     const header = [
       `🆕 Yangi buyurtma #${input.orderId}`,
-      `👤 ${this.escapeHtml(input.customer.name)} (${this.escapeHtml(input.customer.phone)})`,
+      `👤 ${this.escapeHtml(input.customer.name)} (${this.escapeHtml(input.customer.phone.replace(/\s/g, ''))})`,
+      ...(input.userName ? [`👤 Buyurtmachi: ${this.escapeHtml(input.userName)}`] : []),
       `🕒 ${created}`,
       "",
       "📦 Buyurtma:",
