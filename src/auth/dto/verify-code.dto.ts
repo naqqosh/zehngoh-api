@@ -1,14 +1,15 @@
-import { IsNotEmpty, Length, Matches } from 'class-validator'
+import { IsNotEmpty, Length, Matches } from "class-validator";
 
 export class VerifyCodeDto {
   @IsNotEmpty()
   @Matches(/^\+?998\d{9}$/i)
-  phone!: string
+  phone!: string;
 
   @IsNotEmpty()
   @Length(5, 5)
-  code!: string
+  code!: string;
 
-  deviceInfo?: string
+  deviceInfo?: string;
+
+  referralCode?: string;
 }
-
