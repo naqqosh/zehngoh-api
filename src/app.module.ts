@@ -14,12 +14,14 @@ import { ReviewsModule } from "./reviews/reviews.module";
 import { UploadModule } from "./upload/upload.module";
 import { ShopsModule } from "./shops/shops.module";
 import { BotModule } from "./bot/bot.module";
+import { ReferralModule } from "./referral/referral.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     HealthModule,
+    ReferralModule,
     AuthModule,
     ProductsModule,
     WishlistModule,
@@ -32,6 +34,7 @@ import { BotModule } from "./bot/bot.module";
     UploadModule,
     ShopsModule,
     BotModule,
+    ReferralModule,
   ],
 })
 export class AppModule {}
