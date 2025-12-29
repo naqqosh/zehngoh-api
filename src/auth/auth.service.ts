@@ -10,13 +10,15 @@ import { TelegramGatewayService } from "./telegram-gateway.service";
 import { OAuth2Client } from "google-auth-library";
 import { createHash, randomBytes } from "crypto";
 import type { User } from "shared-db";
+import { ReferralService } from "../referral/referral.service";
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
-    private telegramGateway: TelegramGatewayService
+    private telegramGateway: TelegramGatewayService,
+    private referralService: ReferralService
   ) {}
 
   private readonly refreshTokenTtlDays = Number(
@@ -176,7 +178,12 @@ export class AuthService {
     return { expiresInSec: 5 * 60, resendAfterSec: 60 };
   }
 
-  async verify(phone: string, code: string, deviceInfo?: string) {
+  async verify(
+    phone: string,
+    code: string,
+    deviceInfo?: string,
+    referralCode?: string
+  ) {
     const normalized = phone.replace(/\D/g, "");
     const user = await this.prisma.user.findUnique({
       where: { phone: normalized },
@@ -220,7 +227,11 @@ export class AuthService {
       data: { usedAt: new Date() },
     });
 
-    return this.issueSession(user, deviceInfo);
+    const sessionData = await this.issueSession(user, deviceInfo);
+    if (referralCode) {
+      await this.referralService.trackReferral(referralCode, user.id);
+    }
+    return sessionData;
   }
 
   async getProfile(userId: number) {
@@ -229,7 +240,11 @@ export class AuthService {
     return { id: user.id, phone: user.phone, fullName: user.fullName ?? null };
   }
 
-  async verifyGoogle(credential: string, deviceInfo?: string) {
+  async verifyGoogle(
+    credential: string,
+    deviceInfo?: string,
+    referralCode?: string
+  ) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) throw new BadRequestException("Missing GOOGLE_CLIENT_ID");
     const client = new OAuth2Client(clientId);
@@ -258,7 +273,11 @@ export class AuthService {
       });
     }
 
-    return this.issueSession(user, deviceInfo);
+    const sessionData = await this.issueSession(user, deviceInfo);
+    if (referralCode) {
+      await this.referralService.trackReferral(referralCode, user.id);
+    }
+    return sessionData;
   }
 
   async refreshSession(refreshToken: string, deviceInfo?: string) {

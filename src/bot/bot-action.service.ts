@@ -3,6 +3,7 @@ import { CallbackQuery } from "node-telegram-bot-api";
 import type * as TelegramBot from "node-telegram-bot-api";
 import { Prisma } from "shared-db";
 import { PrismaService } from "../prisma/prisma.service";
+import { ReferralService } from "../referral/referral.service";
 import { OrderBotGateway } from "./order-bot.gateway";
 import { OrderBotFormatter } from "./order-bot.formatter";
 import { TelegramBotService } from "./telegram-bot.service";
@@ -15,7 +16,8 @@ export class BotActionService {
   constructor(
     private readonly orderBotGateway: OrderBotGateway,
     private readonly telegram: TelegramBotService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly referralService: ReferralService
   ) {
     this.telegram.registerCallbackHandler((callback) =>
       this.handleCallback(callback)
@@ -188,6 +190,17 @@ export class BotActionService {
         delivery: this.deliveryMutation(deliveredAt),
       },
     });
+
+    // Process referral bonus for completed order
+    try {
+      await this.referralService.processBonus(orderId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process referral bonus for order ${orderId}`,
+        error
+      );
+      // Don't fail the delivery if bonus processing fails
+    }
   }
 
   private deliveryMutation(

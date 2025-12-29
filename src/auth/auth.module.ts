@@ -5,10 +5,12 @@ import { AuthService } from "./auth.service";
 import { TelegramGatewayService } from "./telegram-gateway.service";
 import { TelegramGatewayController } from "./telegram-gateway.controller";
 import { ConfigModule } from "@nestjs/config";
+import { ReferralModule } from "../referral/referral.module";
 console.log("AuthModule loaded with JWT_SECRET:", process.env.JWT_SECRET);
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ReferralModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || "dev_secret",
