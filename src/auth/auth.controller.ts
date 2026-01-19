@@ -1,4 +1,5 @@
 import {
+  // BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,8 +11,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { SendCodeDto } from "./dto/send-code.dto";
-import { VerifyCodeDto } from "./dto/verify-code.dto";
+// import { SendCodeDto } from "./dto/send-code.dto";
+// import { VerifyCodeDto } from "./dto/verify-code.dto";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { Request, Response } from "express";
@@ -26,30 +27,30 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   // Note: OTP endpoints kept for backward-compat but UI should hide/comment them in MVP
-  @Post("send-code")
-  @HttpCode(200)
-  async sendCode(@Body() dto: SendCodeDto) {
-    const result = await this.auth.sendCode(dto.phone);
-    return { success: true, expiresInSec: result.expiresInSec };
-  }
+  // @Post("send-code")
+  // @HttpCode(200)
+  // async sendCode(@Body() dto: SendCodeDto) {
+  //   const result = await this.auth.sendCode(dto.phone);
+  //   return { success: true, expiresInSec: result.expiresInSec };
+  // }
 
-  @Post("verify")
-  async verify(
-    @Body() dto: VerifyCodeDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
-  ) {
-    const deviceInfo =
-      dto.deviceInfo || (req.headers["user-agent"] as string | undefined);
-    const { accessToken, refreshToken, user } = await this.auth.verify(
-      dto.phone,
-      dto.code,
-      deviceInfo,
-      dto.referralCode
-    );
-    setRefreshTokenCookie(res, refreshToken);
-    return { token: accessToken, user };
-  }
+  // @Post("verify")
+  // async verify(
+  //   @Body() dto: VerifyCodeDto,
+  //   @Req() req: Request,
+  //   @Res({ passthrough: true }) res: Response
+  // ) {
+  //   const deviceInfo =
+  //     dto.deviceInfo || (req.headers["user-agent"] as string | undefined);
+  //   const { accessToken, refreshToken, user } = await this.auth.verify(
+  //     dto.phone,
+  //     dto.code,
+  //     deviceInfo,
+  //     dto.referralCode
+  //   );
+  //   setRefreshTokenCookie(res, refreshToken);
+  //   return { token: accessToken, user };
+  // }
 
   @Get("me")
   @UseGuards(JwtAuthGuard)
@@ -57,30 +58,46 @@ export class AuthController {
     return await this.auth.getProfile(user.id);
   }
 
-  @Post("google")
-  @HttpCode(200)
-  async google(
+  @Post("verify-firebase-otp")
+  async verifyFirebaseOtp(
     @Body()
-    body: { credential: string; deviceInfo?: string; referralCode?: string },
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    body: { idToken: string; deviceInfo?: string; referralCode?: string },
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const deviceInfo =
-      body.deviceInfo || (req.headers["user-agent"] as string | undefined);
-    const { accessToken, refreshToken, user } = await this.auth.verifyGoogle(
-      body.credential,
-      deviceInfo,
-      body.referralCode
-    );
+    const { accessToken, refreshToken, user } =
+      await this.auth.verifyFirebaseOtp(
+        body.idToken,
+        body.deviceInfo,
+        body.referralCode,
+      );
     setRefreshTokenCookie(res, refreshToken);
     return { token: accessToken, user };
   }
+
+  // @Post("google")
+  // @HttpCode(200)
+  // async google(
+  //   @Body()
+  //   body: { credential: string; deviceInfo?: string; referralCode?: string },
+  //   @Req() req: Request,
+  //   @Res({ passthrough: true }) res: Response
+  // ) {
+  //   const deviceInfo =
+  //     body.deviceInfo || (req.headers["user-agent"] as string | undefined);
+  //   const { accessToken, refreshToken, user } = await this.auth.verifyGoogle(
+  //     body.credential,
+  //     deviceInfo,
+  //     body.referralCode
+  //   );
+  //   setRefreshTokenCookie(res, refreshToken);
+  //   return { token: accessToken, user };
+  // }
 
   @Post("refresh")
   @HttpCode(200)
   async refresh(
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
     if (!refreshToken) throw new UnauthorizedException("Missing refresh token");
