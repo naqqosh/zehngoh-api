@@ -11,6 +11,7 @@ import { OAuth2Client } from "google-auth-library";
 import { createHash, randomBytes } from "crypto";
 import type { User } from "shared-db";
 import { ReferralService } from "../referral/referral.service";
+import { auth } from "./firebase-admin";
 
 @Injectable()
 export class AuthService {
@@ -18,12 +19,13 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private telegramGateway: TelegramGatewayService,
-    private referralService: ReferralService
+    private referralService: ReferralService,
   ) {}
 
   private readonly refreshTokenTtlDays = Number(
-    process.env.REFRESH_TOKEN_TTL_DAYS || 30
+    process.env.REFRESH_TOKEN_TTL_DAYS || 30,
   );
+
   private readonly accessTokenTtl = process.env.ACCESS_TOKEN_TTL || "15m";
 
   private generateCode() {
@@ -59,7 +61,7 @@ export class AuthService {
       {
         expiresIn: this.accessTokenTtl,
         secret: process.env.JWT_SECRET || "dev_secret",
-      }
+      },
     );
   }
 
@@ -85,7 +87,7 @@ export class AuthService {
   private async rotateSession(
     sessionId: number,
     user: User,
-    deviceInfo?: string
+    deviceInfo?: string,
   ) {
     const refreshToken = this.generateRefreshToken();
     const expiresAt = dayjs().add(this.refreshTokenTtlDays, "day").toDate();
@@ -132,7 +134,7 @@ export class AuthService {
     ) {
       const wait = 60 - dayjs().diff(dayjs(last.createdAt), "second");
       throw new BadRequestException(
-        `Iltimos, ${wait} soniyadan so'ng qaytadan urinib ko'ring`
+        `Iltimos, ${wait} soniyadan so'ng qaytadan urinib ko'ring`,
       );
     }
 
@@ -182,7 +184,7 @@ export class AuthService {
     phone: string,
     code: string,
     deviceInfo?: string,
-    referralCode?: string
+    referralCode?: string,
   ) {
     const normalized = phone.replace(/\D/g, "");
     const user = await this.prisma.user.findUnique({
@@ -218,7 +220,7 @@ export class AuthService {
         data: { attempts: { increment: 1 } },
       });
       throw new UnauthorizedException(
-        `Invalid code. ${MAX_ATTEMPTS - (otp.attempts + 1)} attempts left`
+        `Invalid code. ${MAX_ATTEMPTS - (otp.attempts + 1)} attempts left`,
       );
     }
 
@@ -243,7 +245,7 @@ export class AuthService {
   async verifyGoogle(
     credential: string,
     deviceInfo?: string,
-    referralCode?: string
+    referralCode?: string,
   ) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) throw new BadRequestException("Missing GOOGLE_CLIENT_ID");
@@ -303,7 +305,7 @@ export class AuthService {
     return this.rotateSession(
       session.id,
       user,
-      deviceInfo ?? session.deviceInfo ?? undefined
+      deviceInfo ?? session.deviceInfo ?? undefined,
     );
   }
 
@@ -328,5 +330,76 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException("User not found");
     return this.issueSession(user, deviceInfo);
+  }
+
+  async verifyFirebaseOtp(
+    idToken: string,
+    deviceInfo?: string,
+    referralCode?: string,
+  ) {
+    let rawPhone: string | null = null;
+
+    function normalizePhone(raw: string): string {
+      // faqat raqamlarni olamiz
+      let digits = raw.replace(/\D/g, "");
+
+      // agar +998 bilan kelgan bo‘lsa → 998...
+      if (digits.startsWith("998")) {
+        return `+${digits}`;
+      }
+
+      // agar 9 bilan boshlansa (xato holat)
+      if (digits.startsWith("9")) {
+        return `+998${digits.slice(1)}`;
+      }
+
+      throw new UnauthorizedException("Invalid phone format");
+    }
+
+    /* =========================
+     FAKE / REAL FIREBASE TOKEN
+     ========================= */
+    if (idToken.startsWith("FAKE_FIREBASE_ID_TOKEN:")) {
+      rawPhone = idToken.replace("FAKE_FIREBASE_ID_TOKEN:", "");
+    } else {
+      const decoded = await auth.verifyIdToken(idToken);
+      rawPhone = decoded.phone_number ?? null;
+    }
+
+    if (!rawPhone) {
+      throw new UnauthorizedException("Phone number not found");
+    }
+
+    /* =========================
+     NORMALIZE PHONE
+     ========================= */
+    const phone = normalizePhone(rawPhone);
+
+    /* =========================
+     USER UPSERT
+     ========================= */
+    let user = await this.prisma.user.findUnique({
+      where: { phone },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { phone },
+      });
+    }
+
+    /* =========================
+     SESSION
+     ========================= */
+    const sessionData = await this.issueSession(user, deviceInfo);
+
+    /* =========================
+     REFERRAL
+     ========================= */
+    if (referralCode) {
+      await this.referralService.trackReferral(referralCode, user.id);
+    }
+
+    return sessionData;
   }
 }
