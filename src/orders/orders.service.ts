@@ -14,7 +14,7 @@ export class OrdersService {
 
   constructor(
     private prisma: PrismaService,
-    private readonly orderBotGateway: OrderBotGateway
+    private readonly orderBotGateway: OrderBotGateway,
   ) {}
 
   async list(userId: number) {
@@ -126,7 +126,7 @@ export class OrdersService {
     //     if (promo.type === 'percent') discount = Math.floor((Number(promo.value) * subtotal) / 100)
     //   }
     // }
-    const deliveryFee = 0; // per UI mock currently free
+    const deliveryFee = 4000; // per UI mock currently free
     const total = Math.max(0, subtotal - discount + deliveryFee);
 
     const order = await this.prisma.order.create({
@@ -215,7 +215,7 @@ export class OrdersService {
 
       const items = params.items.map((item) => {
         const product = params.products.find(
-          (p: any) => p.id === item.productId
+          (p: any) => p.id === item.productId,
         );
         const name =
           product?.nameUz ?? product?.nameRu ?? `Mahsulot #${item.productId}`;
@@ -246,7 +246,7 @@ export class OrdersService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(
-        `Failed to notify Telegram bot about order #${params.order.id}: ${message}`
+        `Failed to notify Telegram bot about order #${params.order.id}: ${message}`,
       );
     }
   }
