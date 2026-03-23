@@ -1,3 +1,15 @@
+// Simple in-memory cache for product lists
+const productsCache: {
+  [key: string]: {
+    data: any;
+    expiresAt: number;
+  };
+} = {};
+
+function getCacheKey(query: ListProductsDto): string {
+  // Key based on all query params (pagination, filters, etc)
+  return JSON.stringify(query);
+}
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "shared-db";
 import { PrismaService } from "../prisma/prisma.service";
@@ -8,6 +20,12 @@ export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   async list(query: ListProductsDto) {
+    const cacheKey = getCacheKey(query);
+    const now = Date.now();
+    const cached = productsCache[cacheKey];
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
     const where: any = { status: 1 };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.brandId) where.brandId = query.brandId;
@@ -65,7 +83,7 @@ export class ProductsService {
       });
     });
 
-    return {
+    const result = {
       items: items.map((p: any) => {
         const summary = summaryMap.get(p.id) ?? { count: 0, avgRating: 0 };
         return {
@@ -86,6 +104,12 @@ export class ProductsService {
       page: query.page ?? 1,
       pageSize: take,
     };
+    // Cache for 1 hour
+    productsCache[cacheKey] = {
+      data: result,
+      expiresAt: now + 60 * 60 * 1000,
+    };
+    return result;
   }
 
   async getById(id: number) {
