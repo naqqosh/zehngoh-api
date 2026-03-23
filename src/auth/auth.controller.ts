@@ -1,3 +1,11 @@
+import { IsString, MinLength, MaxLength } from "class-validator";
+
+class SetNameDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  fullName!: string;
+}
 import {
   // BadRequestException,
   Body,
@@ -25,6 +33,13 @@ import {
 @Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
+
+  @Post("set-name")
+  @UseGuards(JwtAuthGuard)
+  async setName(@CurrentUser() user: any, @Body() dto: SetNameDto) {
+    await this.auth.setFullName(user.id, dto.fullName);
+    return { success: true, user: { ...user, fullName: dto.fullName } };
+  }
 
   // Note: OTP endpoints kept for backward-compat but UI should hide/comment them in MVP
   // @Post("send-code")
