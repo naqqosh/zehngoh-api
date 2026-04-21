@@ -7,11 +7,11 @@ import { PrismaService } from "../prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
 import * as dayjs from "dayjs";
 import { TelegramGatewayService } from "./telegram-gateway.service";
-import { OAuth2Client } from "google-auth-library";
 import { createHash, randomBytes } from "crypto";
-import type { User } from "shared-db";
+import type { User } from "@prisma/client";
 import { ReferralService } from "../referral/referral.service";
-import { auth } from "./firebase-admin";
+// import { auth } from "./firebase-admin";
+// import { OAuth2Client } from "google-auth-library";
 
 @Injectable()
 export class AuthService {
@@ -250,45 +250,45 @@ export class AuthService {
     return { id: user.id, phone: user.phone, fullName: user.fullName ?? null };
   }
 
-  async verifyGoogle(
-    credential: string,
-    deviceInfo?: string,
-    referralCode?: string,
-  ) {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) throw new BadRequestException("Missing GOOGLE_CLIENT_ID");
-    const client = new OAuth2Client(clientId);
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: clientId,
-    });
-    const payload = ticket.getPayload();
-    if (!payload) throw new UnauthorizedException("Invalid Google credential");
-    const { sub, email, name, email_verified } = payload;
-    if (!email || email_verified === false)
-      throw new UnauthorizedException("Email not verified");
+  // async verifyGoogle(
+  //   credential: string,
+  //   deviceInfo?: string,
+  //   referralCode?: string,
+  // ) {
+  //   const clientId = process.env.GOOGLE_CLIENT_ID;
+  //   if (!clientId) throw new BadRequestException("Missing GOOGLE_CLIENT_ID");
+  //   const client = new OAuth2Client(clientId);
+  //   const ticket = await client.verifyIdToken({
+  //     idToken: credential,
+  //     audience: clientId,
+  //   });
+  //   const payload = ticket.getPayload();
+  //   if (!payload) throw new UnauthorizedException("Invalid Google credential");
+  //   const { sub, email, name, email_verified } = payload;
+  //   if (!email || email_verified === false)
+  //     throw new UnauthorizedException("Email not verified");
 
-    // Find or create user
-    let user = await this.prisma.user.findFirst({
-      where: { OR: [{ googleId: sub }, { email }] },
-    });
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: { email, fullName: name || null, googleId: sub },
-      });
-    } else if (!user.googleId) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { googleId: sub, fullName: user.fullName || name || null },
-      });
-    }
+  //   // Find or create user
+  //   let user = await this.prisma.user.findFirst({
+  //     where: { OR: [{ googleId: sub }, { email }] },
+  //   });
+  //   if (!user) {
+  //     user = await this.prisma.user.create({
+  //       data: { email, fullName: name || null, googleId: sub },
+  //     });
+  //   } else if (!user.googleId) {
+  //     user = await this.prisma.user.update({
+  //       where: { id: user.id },
+  //       data: { googleId: sub, fullName: user.fullName || name || null },
+  //     });
+  //   }
 
-    const sessionData = await this.issueSession(user, deviceInfo);
-    if (referralCode) {
-      await this.referralService.trackReferral(referralCode, user.id);
-    }
-    return sessionData;
-  }
+  //   const sessionData = await this.issueSession(user, deviceInfo);
+  //   if (referralCode) {
+  //     await this.referralService.trackReferral(referralCode, user.id);
+  //   }
+  //   return sessionData;
+  // }
 
   async refreshSession(refreshToken: string, deviceInfo?: string) {
     const hashed = this.hashRefreshToken(refreshToken);
@@ -340,74 +340,74 @@ export class AuthService {
     return this.issueSession(user, deviceInfo);
   }
 
-  async verifyFirebaseOtp(
-    idToken: string,
-    deviceInfo?: string,
-    referralCode?: string,
-  ) {
-    let rawPhone: string | null = null;
+  // async verifyFirebaseOtp(
+  //   idToken: string,
+  //   deviceInfo?: string,
+  //   referralCode?: string,
+  // ) {
+  //   let rawPhone: string | null = null;
 
-    function normalizePhone(raw: string): string {
-      // faqat raqamlarni olamiz
-      let digits = raw.replace(/\D/g, "");
+  //   function normalizePhone(raw: string): string {
+  //     // faqat raqamlarni olamiz
+  //     let digits = raw.replace(/\D/g, "");
 
-      // agar +998 bilan kelgan bo‘lsa → 998...
-      if (digits.startsWith("998")) {
-        return `+${digits}`;
-      }
+  //     // agar +998 bilan kelgan bo‘lsa → 998...
+  //     if (digits.startsWith("998")) {
+  //       return `+${digits}`;
+  //     }
 
-      // agar 9 bilan boshlansa (xato holat)
-      if (digits.startsWith("9")) {
-        return `+998${digits.slice(1)}`;
-      }
+  //     // agar 9 bilan boshlansa (xato holat)
+  //     if (digits.startsWith("9")) {
+  //       return `+998${digits.slice(1)}`;
+  //     }
 
-      throw new UnauthorizedException("Invalid phone format");
-    }
+  //     throw new UnauthorizedException("Invalid phone format");
+  //   }
 
-    /* =========================
-     FAKE / REAL FIREBASE TOKEN
-     ========================= */
-    if (idToken.startsWith("FAKE_FIREBASE_ID_TOKEN:")) {
-      rawPhone = idToken.replace("FAKE_FIREBASE_ID_TOKEN:", "");
-    } else {
-      const decoded = await auth.verifyIdToken(idToken);
-      rawPhone = decoded.phone_number ?? null;
-    }
+  //   /* =========================
+  //    FAKE / REAL FIREBASE TOKEN
+  //    ========================= */
+  //   if (idToken.startsWith("FAKE_FIREBASE_ID_TOKEN:")) {
+  //     rawPhone = idToken.replace("FAKE_FIREBASE_ID_TOKEN:", "");
+  //   } else {
+  //     const decoded = await auth.verifyIdToken(idToken);
+  //     rawPhone = decoded.phone_number ?? null;
+  //   }
 
-    if (!rawPhone) {
-      throw new UnauthorizedException("Phone number not found");
-    }
+  //   if (!rawPhone) {
+  //     throw new UnauthorizedException("Phone number not found");
+  //   }
 
-    /* =========================
-     NORMALIZE PHONE
-     ========================= */
-    const phone = normalizePhone(rawPhone);
+  //   /* =========================
+  //    NORMALIZE PHONE
+  //    ========================= */
+  //   const phone = normalizePhone(rawPhone);
 
-    /* =========================
-     USER UPSERT
-     ========================= */
-    let user = await this.prisma.user.findUnique({
-      where: { phone },
-    });
+  //   /* =========================
+  //    USER UPSERT
+  //    ========================= */
+  //   let user = await this.prisma.user.findUnique({
+  //     where: { phone },
+  //   });
 
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: { phone },
-      });
-    }
+  //   if (!user) {
+  //     user = await this.prisma.user.create({
+  //       data: { phone },
+  //     });
+  //   }
 
-    /* =========================
-     SESSION
-     ========================= */
-    const sessionData = await this.issueSession(user, deviceInfo);
+  //   /* =========================
+  //    SESSION
+  //    ========================= */
+  //   const sessionData = await this.issueSession(user, deviceInfo);
 
-    /* =========================
-     REFERRAL
-     ========================= */
-    if (referralCode) {
-      await this.referralService.trackReferral(referralCode, user.id);
-    }
+  //   /* =========================
+  //    REFERRAL
+  //    ========================= */
+  //   if (referralCode) {
+  //     await this.referralService.trackReferral(referralCode, user.id);
+  //   }
 
-    return sessionData;
-  }
+  //   return sessionData;
+  // }
 }

@@ -11,7 +11,7 @@ function getCacheKey(query: ListProductsDto): string {
   return JSON.stringify(query);
 }
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "shared-db";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ListProductsDto } from "./dto/list-products.dto";
 

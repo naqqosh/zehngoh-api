@@ -1,24 +1,31 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { PrismaService } from '../prisma/prisma.service'
-import { AddItemDto } from './dto/add-item.dto'
-import { Prisma } from 'shared-db'
-
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { AddItemDto } from "./dto/add-item.dto";
+import { Prisma } from "@prisma/client";
 @Injectable()
 export class CartService {
   constructor(private prisma: PrismaService) {}
 
   private async ensureActiveCart(userId: number) {
-    let cart = await this.prisma.cart.findFirst({ where: { userId, status: 'active' } })
-    if (!cart) cart = await this.prisma.cart.create({ data: { userId } })
-    return cart
+    let cart = await this.prisma.cart.findFirst({
+      where: { userId, status: "active" },
+    });
+    if (!cart) cart = await this.prisma.cart.create({ data: { userId } });
+    return cart;
   }
 
   async getActiveCart(userId: number) {
-    const cart = await this.ensureActiveCart(userId)
+    const cart = await this.ensureActiveCart(userId);
     const items = await this.prisma.cartItem.findMany({
       where: { cartId: cart.id },
       include: {
-        product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+        product: {
+          include: { images: { where: { isPrimary: true }, take: 1 } },
+        },
         variant: {
           include: {
             attributes: {
@@ -27,18 +34,30 @@ export class CartService {
                 value: true,
               },
             },
-            images: { take: 1, orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }, { id: 'asc' }] },
+            images: {
+              take: 1,
+              orderBy: [
+                { isPrimary: "desc" },
+                { position: "asc" },
+                { id: "asc" },
+              ],
+            },
           },
         },
       },
-      orderBy: { id: 'asc' },
-    })
-    const totalItems = items.reduce((s: number, i: any) => s + i.quantity, 0)
+      orderBy: { id: "asc" },
+    });
+    const totalItems = items.reduce((s: number, i: any) => s + i.quantity, 0);
     const totalPrice = items.reduce((s: number, i: any) => {
-      const variantPrice = i.variant ? Number(i.variant.priceUzs as unknown as bigint) : null
-      const price = variantPrice && variantPrice > 0 ? variantPrice : Number(i.product.priceUzs)
-      return s + price * i.quantity
-    }, 0)
+      const variantPrice = i.variant
+        ? Number(i.variant.priceUzs as unknown as bigint)
+        : null;
+      const price =
+        variantPrice && variantPrice > 0
+          ? variantPrice
+          : Number(i.product.priceUzs);
+      return s + price * i.quantity;
+    }, 0);
     return {
       id: cart.id,
       status: cart.status,
@@ -49,9 +68,14 @@ export class CartService {
         nameUz: i.product.nameUz,
         nameRu: i.product.nameRu,
         priceUzs: (() => {
-          const variantPrice = i.variant ? Number(i.variant.priceUzs as unknown as bigint) : null
-          const price = variantPrice && variantPrice > 0 ? variantPrice : Number(i.product.priceUzs)
-          return price.toString()
+          const variantPrice = i.variant
+            ? Number(i.variant.priceUzs as unknown as bigint)
+            : null;
+          const price =
+            variantPrice && variantPrice > 0
+              ? variantPrice
+              : Number(i.product.priceUzs);
+          return price.toString();
         })(),
         quantity: i.quantity,
         imageUrl: i.product.images[0]?.imageUrl ?? null,
@@ -65,31 +89,41 @@ export class CartService {
           valueNameRu: attr.value?.nameRu ?? null,
           valueColor: attr.value?.color ?? null,
         })),
-        variantPriceUzs: i.variant ? (Number(i.variant.priceUzs as unknown as bigint) || 0).toString() : null,
+        variantPriceUzs: i.variant
+          ? (Number(i.variant.priceUzs as unknown as bigint) || 0).toString()
+          : null,
         variantImageUrl:
-          i.variant?.images && i.variant.images.length > 0 ? i.variant.images[0]?.imageUrl ?? null : null,
+          i.variant?.images && i.variant.images.length > 0
+            ? (i.variant.images[0]?.imageUrl ?? null)
+            : null,
       })),
       totalItems,
       totalPrice: totalPrice.toString(),
-    }
+    };
   }
 
   async addItem(userId: number, dto: AddItemDto) {
-    const cart = await this.ensureActiveCart(userId)
+    const cart = await this.ensureActiveCart(userId);
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
       select: { status: true, moderationStatus: true },
-    })
-    if (!product || product.status !== 1 || product.moderationStatus !== 'APPROVED') {
-      throw new BadRequestException("Mahsulot savatga qo'shish uchun mavjud emas")
+    });
+    if (
+      !product ||
+      product.status !== 1 ||
+      product.moderationStatus !== "APPROVED"
+    ) {
+      throw new BadRequestException(
+        "Mahsulot savatga qo'shish uchun mavjud emas",
+      );
     }
-    const quantity = dto.quantity ?? 1
+    const quantity = dto.quantity ?? 1;
     const createData: Prisma.CartItemUncheckedCreateInput = {
       cartId: cart.id,
       productId: dto.productId,
       variantId: dto.variantId ?? null,
       quantity,
-    }
+    };
 
     if (dto.variantId != null) {
       await this.prisma.cartItem.upsert({
@@ -102,39 +136,46 @@ export class CartService {
         },
         update: { quantity: { increment: quantity } },
         create: createData,
-      })
+      });
     } else {
       const existing = await this.prisma.cartItem.findFirst({
         where: { cartId: cart.id, productId: dto.productId, variantId: null },
-      })
+      });
       if (existing) {
         await this.prisma.cartItem.update({
           where: { id: existing.id },
           data: { quantity: existing.quantity + quantity },
-        })
+        });
       } else {
-        await this.prisma.cartItem.create({ data: createData })
+        await this.prisma.cartItem.create({ data: createData });
       }
     }
   }
 
   async updateQuantity(userId: number, itemId: number, quantity: number) {
-    const cart = await this.ensureActiveCart(userId)
-    const item = await this.prisma.cartItem.findFirst({ where: { id: itemId, cartId: cart.id } })
-    if (!item) throw new NotFoundException('Item not found')
-    if (quantity <= 0) return this.removeItem(userId, itemId)
-    await this.prisma.cartItem.update({ where: { id: item.id }, data: { quantity } })
+    const cart = await this.ensureActiveCart(userId);
+    const item = await this.prisma.cartItem.findFirst({
+      where: { id: itemId, cartId: cart.id },
+    });
+    if (!item) throw new NotFoundException("Item not found");
+    if (quantity <= 0) return this.removeItem(userId, itemId);
+    await this.prisma.cartItem.update({
+      where: { id: item.id },
+      data: { quantity },
+    });
   }
 
   async removeItem(userId: number, itemId: number) {
-    const cart = await this.ensureActiveCart(userId)
-    const item = await this.prisma.cartItem.findFirst({ where: { id: itemId, cartId: cart.id } })
-    if (!item) return
-    await this.prisma.cartItem.delete({ where: { id: item.id } })
+    const cart = await this.ensureActiveCart(userId);
+    const item = await this.prisma.cartItem.findFirst({
+      where: { id: itemId, cartId: cart.id },
+    });
+    if (!item) return;
+    await this.prisma.cartItem.delete({ where: { id: item.id } });
   }
 
   async clear(userId: number) {
-    const cart = await this.ensureActiveCart(userId)
-    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } })
+    const cart = await this.ensureActiveCart(userId);
+    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
   }
 }
