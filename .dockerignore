@@ -59,3 +59,7 @@ apps/*/.next/
 # Ignore generated Prisma client (if used)
 prisma/dev.db
 prisma/dev.db-journal
+
+README.md
+ASSUMPTIONS.md
+.gitignore

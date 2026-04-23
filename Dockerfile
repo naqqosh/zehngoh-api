@@ -1,4 +1,4 @@
-FROM node:20-bullseye AS builder
+FROM node:20-alpine AS builder
 
 RUN npm i -g pnpm
 WORKDIR /app
@@ -13,11 +13,11 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 
-FROM gcr.io/distroless/nodejs20-debian12
+FROM node:20-alpine
 
 WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 
-CMD ["dist/main.js"]
+CMD ["node", "dist/main.js"]
