@@ -20,6 +20,7 @@ async function bootstrap() {
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://zehngoh.uz",
+    "https://www.zehngoh.uz",
   ];
   const envOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
@@ -30,11 +31,10 @@ async function bootstrap() {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Serve static media from seller-api's media folder so UI can load images
@@ -53,7 +53,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    })
+    }),
   );
   app.use(cookieParser());
 
