@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { CallbackQuery } from "node-telegram-bot-api";
 import type * as TelegramBot from "node-telegram-bot-api";
-import { Prisma } from "shared-db";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReferralService } from "../referral/referral.service";
 import { OrderBotGateway } from "./order-bot.gateway";
@@ -17,10 +17,10 @@ export class BotActionService {
     private readonly orderBotGateway: OrderBotGateway,
     private readonly telegram: TelegramBotService,
     private readonly prisma: PrismaService,
-    private readonly referralService: ReferralService
+    private readonly referralService: ReferralService,
   ) {
     this.telegram.registerCallbackHandler((callback) =>
-      this.handleCallback(callback)
+      this.handleCallback(callback),
     );
   }
 
@@ -32,7 +32,7 @@ export class BotActionService {
       await this.telegram.answerCallbackQuery(
         callback.id,
         "Amalni bajarib bo'lmadi",
-        true
+        true,
       );
       return;
     }
@@ -42,7 +42,7 @@ export class BotActionService {
       await this.telegram.answerCallbackQuery(
         callback.id,
         "Xato: amal tanib bo'lmadi",
-        true
+        true,
       );
       return;
     }
@@ -50,7 +50,7 @@ export class BotActionService {
     if (this.isAlreadyProcessed(callback.id)) {
       await this.telegram.answerCallbackQuery(
         callback.id,
-        "Allaqachon bajarilgan"
+        "Allaqachon bajarilgan",
       );
       return;
     }
@@ -63,7 +63,7 @@ export class BotActionService {
     ) {
       await this.telegram.answerCallbackQuery(
         callback.id,
-        "Bu buyurtma allaqachon bekor qilingan"
+        "Bu buyurtma allaqachon bekor qilingan",
       );
       return;
     }
@@ -73,7 +73,7 @@ export class BotActionService {
     ) {
       await this.telegram.answerCallbackQuery(
         callback.id,
-        "Bu buyurtma allaqachon yetkazib berilgan"
+        "Bu buyurtma allaqachon yetkazib berilgan",
       );
       return;
     }
@@ -83,7 +83,7 @@ export class BotActionService {
         await this.cancelOrder(action.orderId);
         const updated = this.orderBotGateway.formatStatusMessage(
           currentText,
-          "cancelled"
+          "cancelled",
         );
         await this.telegram.editMessageText(
           message.chat.id,
@@ -93,17 +93,17 @@ export class BotActionService {
             parse_mode: "HTML",
             disable_web_page_preview: true,
             reply_markup: { inline_keyboard: [] },
-          }
+          },
         );
         await this.telegram.answerCallbackQuery(
           callback.id,
-          "Buyurtma bekor qilindi"
+          "Buyurtma bekor qilindi",
         );
       } else if (action.action === "deliver") {
         await this.markDelivered(action.orderId);
         const updated = this.orderBotGateway.formatStatusMessage(
           currentText,
-          "delivered"
+          "delivered",
         );
         await this.telegram.editMessageText(
           message.chat.id,
@@ -113,11 +113,11 @@ export class BotActionService {
             parse_mode: "HTML",
             disable_web_page_preview: true,
             reply_markup: { inline_keyboard: [] },
-          }
+          },
         );
         await this.telegram.answerCallbackQuery(
           callback.id,
-          "Buyurtma yetkazib berildi sifatida belgilandi"
+          "Buyurtma yetkazib berildi sifatida belgilandi",
         );
       } else if (action.action === "refresh") {
         await this.refreshOrderStatus(
@@ -125,18 +125,18 @@ export class BotActionService {
           message.chat.id,
           message.message_id,
           currentText,
-          callback.id
+          callback.id,
         );
       }
     } catch (err) {
       this.logger.error(
         `Failed to handle bot action ${action.action} for order ${action.orderId}`,
-        err as Error
+        err as Error,
       );
       await this.telegram.answerCallbackQuery(
         callback.id,
         "Amal bajarilmadi. Qayta urinib ko'ring.",
-        true
+        true,
       );
     } finally {
       this.trimProcessedCache();
@@ -152,7 +152,7 @@ export class BotActionService {
     if (order.status === "cancelled") return;
     if (order.status !== "pending") {
       throw new Error(
-        `Cannot cancel order ${orderId} with status ${order.status}`
+        `Cannot cancel order ${orderId} with status ${order.status}`,
       );
     }
 
@@ -176,7 +176,7 @@ export class BotActionService {
     if (order.status === "delivered") return;
     if (order.status === "cancelled") {
       throw new Error(
-        `Cannot mark order ${orderId} as delivered because it is cancelled`
+        `Cannot mark order ${orderId} as delivered because it is cancelled`,
       );
     }
 
@@ -197,14 +197,14 @@ export class BotActionService {
     } catch (error) {
       this.logger.error(
         `Failed to process referral bonus for order ${orderId}`,
-        error
+        error,
       );
       // Don't fail the delivery if bonus processing fails
     }
   }
 
   private deliveryMutation(
-    deliveredAt: Date
+    deliveredAt: Date,
   ): Prisma.DeliveryUpdateOneWithoutOrderNestedInput {
     return {
       upsert: {
@@ -237,7 +237,7 @@ export class BotActionService {
     chatId: number,
     messageId: number,
     currentText: string,
-    callbackId: string
+    callbackId: string,
   ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -277,7 +277,7 @@ export class BotActionService {
 
   private buildActionKeyboard(
     orderId: number,
-    status: string
+    status: string,
   ): TelegramBot.InlineKeyboardMarkup {
     // If order is already cancelled or delivered, remove buttons
     if (status === "cancelled" || status === "delivered") {
@@ -292,7 +292,7 @@ export class BotActionService {
             text: "🔄 Yangilash",
             callback_data: this.orderBotGateway.buildCallbackData(
               "refresh",
-              orderId
+              orderId,
             ),
           },
         ],
@@ -301,14 +301,14 @@ export class BotActionService {
             text: "Bekor qilish",
             callback_data: this.orderBotGateway.buildCallbackData(
               "cancel",
-              orderId
+              orderId,
             ),
           },
           {
             text: "Yetkazib berildi",
             callback_data: this.orderBotGateway.buildCallbackData(
               "deliver",
-              orderId
+              orderId,
             ),
           },
         ],

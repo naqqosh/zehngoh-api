@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "shared-db";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateOrderItemReviewDto,
@@ -188,7 +188,7 @@ export class ReviewsService {
     }
 
     return Array.from(uniqueByProduct.values()).map((item) =>
-      this.mapOrderItemForList(item)
+      this.mapOrderItemForList(item),
     );
   }
 
@@ -212,7 +212,7 @@ export class ReviewsService {
   async submitReview(
     userId: number,
     orderItemId: number,
-    dto: CreateOrderItemReviewDto
+    dto: CreateOrderItemReviewDto,
   ) {
     const item = await this.prisma.orderItem.findFirst({
       where: {
@@ -319,7 +319,7 @@ export class ReviewsService {
   }
 
   private mapOrderItemBase(
-    item: OrderItemListPayload | OrderItemWithReviewPayload
+    item: OrderItemListPayload | OrderItemWithReviewPayload,
   ) {
     return {
       orderItemId: item.id,
@@ -344,7 +344,7 @@ export class ReviewsService {
   private resolveOverallRating(dto: CreateOrderItemReviewDto) {
     if (dto.productRating && dto.productRating > 0) return dto.productRating;
     const average = Math.round(
-      (dto.qualityRating + dto.serviceRating + dto.deliveryRating) / 3
+      (dto.qualityRating + dto.serviceRating + dto.deliveryRating) / 3,
     );
     return Math.min(5, Math.max(1, average));
   }
@@ -363,7 +363,7 @@ export class ReviewsService {
       const imageUrl = this.normalizeText(image.imageUrl) ?? null;
       if (fileId === null && !imageUrl) {
         throw new BadRequestException(
-          `Image at position ${index} must include a fileId or imageUrl`
+          `Image at position ${index} must include a fileId or imageUrl`,
         );
       }
       return { fileId, imageUrl };

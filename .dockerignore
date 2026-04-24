@@ -1,0 +1,65 @@
+# Node
+node_modules/
+.pnpm/
+.pnpm-store/
+*.log
+pnpm-debug.log*
+
+# Node modules inside any subproject
+**/node_modules/
+
+# Media folder
+# **/media//
+
+# Build outputs
+dist/
+build/
+.cache/
+.next/
+out/
+coverage/
+temp/
+tmp/
+*.tsbuildinfo
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Log files
+logs
+*.log
+*.log.*
+
+# Optional lock files
+package-lock.json
+yarn.lock
+
+# Local dev or custom output
+*.local
+*.bak
+*.swp
+
+# Output folders per app/api (if any)
+apps/*/dist/
+apps/*/build/
+apps/*/.next/
+
+# Ignore generated Prisma client (if used)
+prisma/dev.db
+prisma/dev.db-journal
+
+README.md
+ASSUMPTIONS.md
+.gitignore

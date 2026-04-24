@@ -1,0 +1,847 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeRole {
+  MANAGER
+  SUPPORT
+  FINANCE_MANAGER
+  MARKETER
+  CONTENT_MANAGER
+  WAREHOUSE_WORKER
+}
+
+enum ProductModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           Int     @id @default(autoincrement())
+  phone        String? @unique
+  email        String? @unique
+  passwordHash String? @map("password_hash")
+  fullName     String? @map("full_name")
+
+  referralCode         String? @unique @map("referral_code")
+  referralBonusBalance Decimal @default(0.00) @map("referral_bonus_balance")
+
+  referrerReferrals Referral[] @relation("ReferrerReferrals")
+  referredReferrals Referral[] @relation("ReferredReferrals")
+
+  telegramId            String?              @unique @map("telegram_id")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime?            @map("updated_at")
+  selectedSellerId      Int?                 @map("selected_seller_id")
+  webauthnUserId        String?              @unique @map("webauthn_user_id")
+  googleId              String?              @unique @map("google_id")
+  interfaceLanguage     String?              @map("interface_language")
+  carts                 Cart[]
+  notFoundReports       NotFoundFeedback[]
+  orders                Order[]              @relation("OrderUser")
+  referredOrders        Order[]              @relation("OrderReferrer")
+  otpCodes              OtpCode[]
+  promoUses             PromoRedemption[]
+  sellers               Seller[]             @relation("UserSellers")
+  addresses             ShippingAddress[]
+  sessions              UserSession[]
+  selectedSeller        Seller?              @relation("SelectedSeller", fields: [selectedSellerId], references: [id])
+  webauthnCreds         WebAuthnCredential[]
+  orderItemReviews      OrderItemReview[]
+  sellerReplyReviews    OrderItemReview[]    @relation("SellerReplyAuthor")
+  wishlist              Wishlist?
+  employeeProfiles      Employee[]           @relation("UserEmployees")
+  assignedEmployeeRoles EmployeeAssignment[] @relation("EmployeeAssignmentAssignedBy")
+  roleAssignments       UserRole[]           @relation("UserRoleUser")
+  grantedRoles          UserRole[]           @relation("UserRoleAssignedBy")
+
+  @@map("users")
+}
+
+model Referral {
+  id           Int            @id @default(autoincrement())
+  referrerId   Int
+  referredId   Int?
+  referralCode String         @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime?      @updatedAt
+  firstOrderId Int?
+  bonusAmount  Decimal        @default(0.00)
+  status       ReferralStatus @default(PENDING)
+
+  referrer   User   @relation("ReferrerReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred   User?  @relation("ReferredReferrals", fields: [referredId], references: [id], onDelete: SetNull)
+  firstOrder Order? @relation(fields: [firstOrderId], references: [id], onDelete: SetNull)
+
+  @@index([referralCode])
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([status])
+  @@map("referrals")
+}
+
+enum ReferralStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  CANCELED
+}
+
+model Seller {
+  id                  Int                  @id @default(autoincrement())
+  userId              Int                  @map("user_id")
+  storeName           String               @unique @map("store_name")
+  slug                String               @unique
+  skuPrefix           String               @unique @map("sku_prefix")
+  description         String?
+  storeNameUz         String?              @map("store_name_uz")
+  storeNameRu         String?              @map("store_name_ru")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  avatarUrl           String?              @map("avatar_url")
+  avatarBlurUrl       String?              @map("avatar_blur_url")
+  coverUrl            String?              @map("cover_url")
+  coverBlurUrl        String?              @map("cover_blur_url")
+  products            Product[]
+  user                User                 @relation("UserSellers", fields: [userId], references: [id])
+  selectedByUsers     User[]               @relation("SelectedSeller")
+  employees           Employee[]           @relation("SellerEmployees")
+  employeeAssignments EmployeeAssignment[] @relation("ShopEmployeeAssignments")
+  financeTransactions FinanceTransaction[]
+
+  @@map("sellers")
+}
+
+model Employee {
+  id            Int       @id @default(autoincrement())
+  sellerId      Int       @map("seller_id")
+  userId        Int?      @map("user_id")
+  fullName      String    @map("full_name")
+  email         String?   @map("email")
+  phone         String?   @map("phone")
+  isActive      Boolean   @default(true) @map("is_active")
+  invitedAt     DateTime? @map("invited_at")
+  activatedAt   DateTime? @map("activated_at")
+  deactivatedAt DateTime? @map("deactivated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  seller      Seller               @relation("SellerEmployees", fields: [sellerId], references: [id])
+  user        User?                @relation("UserEmployees", fields: [userId], references: [id])
+  assignments EmployeeAssignment[]
+
+  @@unique([sellerId, userId])
+  @@index([sellerId])
+  @@index([userId])
+  @@map("employees")
+}
+
+model EmployeeAssignment {
+  id               Int          @id @default(autoincrement())
+  employeeId       Int          @map("employee_id")
+  shopId           Int          @map("shop_id")
+  role             EmployeeRole @map("role")
+  assignedByUserId Int?         @map("assigned_by_user_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  activatedAt      DateTime?    @map("activated_at")
+  deactivatedAt    DateTime?    @map("deactivated_at")
+
+  employee       Employee @relation(fields: [employeeId], references: [id])
+  shop           Seller   @relation("ShopEmployeeAssignments", fields: [shopId], references: [id])
+  assignedByUser User?    @relation("EmployeeAssignmentAssignedBy", fields: [assignedByUserId], references: [id])
+
+  @@unique([employeeId, shopId])
+  @@index([shopId])
+  @@index([assignedByUserId])
+  @@map("employee_assignments")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  roleId           Int      @map("role_id")
+  assignedByUserId Int?     @map("assigned_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user       User  @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role       Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("UserRoleAssignedBy", fields: [assignedByUserId], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+  @@index([assignedByUserId])
+  @@map("user_roles")
+}
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  nameUz    String     @map("name_uz")
+  nameRu    String     @map("name_ru")
+  parentId  Int?       @map("parent_id")
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+  parent    Category?  @relation("CategoryToChildren", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryToChildren")
+  products  Product[]
+
+  @@unique([parentId, nameUz])
+  @@unique([parentId, nameRu])
+  @@map("categories")
+}
+
+model Country {
+  id     String @id
+  nameUz String @map("name_uz")
+  nameRu String @map("name_ru")
+
+  @@map("countries")
+}
+
+model Brand {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  models Model[]
+
+  @@map("brands")
+}
+
+model Model {
+  id      Int    @id @default(autoincrement())
+  brandId Int    @map("brand_id")
+  name    String
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  @@unique([brandId, name])
+  @@index([brandId])
+  @@map("models")
+}
+
+model Attribute {
+  id                      Int                       @id @default(autoincrement())
+  nameUz                  String                    @map("name_uz")
+  nameRu                  String                    @map("name_ru")
+  type                    String
+  useInSku                Boolean                   @default(false) @map("use_in_sku")
+  values                  AttributeValue[]
+  ProductVariantAttribute ProductVariantAttribute[]
+
+  @@map("attributes")
+}
+
+model AttributeValue {
+  id                      Int                       @id @default(autoincrement())
+  attributeId             Int                       @map("attribute_id")
+  nameUz                  String                    @map("name_uz")
+  nameRu                  String                    @map("name_ru")
+  color                   String?
+  skuCode                 String?                   @map("sku_code")
+  attribute               Attribute                 @relation(fields: [attributeId], references: [id])
+  ProductVariantAttribute ProductVariantAttribute[]
+
+  @@unique([attributeId, skuCode])
+  @@index([attributeId])
+  @@map("attribute_values")
+}
+
+model File {
+  id           Int                    @id @default(autoincrement())
+  url          String
+  filename     String
+  size         Int
+  mimetype     String
+  createdAt    DateTime               @default(now()) @map("created_at")
+  reviewImages OrderItemReviewImage[]
+
+  @@map("files")
+}
+
+model Product {
+  id                 Int                      @id @default(autoincrement())
+  sellerId           Int                      @map("seller_id")
+  categoryId         Int                      @map("category_id")
+  sku                String
+  slug               String                   @unique
+  nameUz             String                   @map("name_uz")
+  nameRu             String                   @map("name_ru")
+  descriptionUz      String                   @map("description_uz")
+  descriptionRu      String                   @map("description_ru")
+  priceUzs           BigInt                   @map("price_uzs")
+  status             Int                      @default(0)
+  moderationStatus   ProductModerationStatus  @default(PENDING) @map("moderation_status")
+  moderationComment  String?                  @map("moderation_comment")
+  moderatedAt        DateTime?                @map("moderated_at")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime?                @map("updated_at")
+  countryId          Int?                     @map("country_id")
+  brandId            Int?                     @map("brand_id")
+  modelId            Int?                     @map("model_id")
+  warranty           Int?
+  shortDescriptionUz String?                  @map("short_description_uz")
+  shortDescriptionRu String?                  @map("short_description_ru")
+  featuresUz         String?                  @map("features_uz")
+  featuresRu         String?                  @map("features_ru")
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+  customAttributes   ProductCustomAttribute[]
+  images             ProductImage[]
+  ProductLocation    ProductLocation[]
+  stocks             ProductStock[]
+  stockMoves         ProductStockMovement[]
+  variants           ProductVariant[]
+  category           Category                 @relation(fields: [categoryId], references: [id])
+  seller             Seller                   @relation(fields: [sellerId], references: [id])
+  WishlistItem       WishlistItem[]
+  orderItemReviews   OrderItemReview[]
+
+  @@unique([sellerId, sku])
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([moderationStatus])
+  @@map("products")
+}
+
+model ProductCustomAttribute {
+  id                            Int                             @id @default(autoincrement())
+  productId                     Int                             @map("product_id")
+  nameUz                        String                          @map("name_uz")
+  nameRu                        String                          @map("name_ru")
+  values                        ProductCustomAttributeValue[]
+  product                       Product                         @relation(fields: [productId], references: [id])
+  ProductVariantCustomAttribute ProductVariantCustomAttribute[]
+
+  @@index([productId])
+  @@map("product_custom_attributes")
+}
+
+model ProductCustomAttributeValue {
+  id                            Int                             @id @default(autoincrement())
+  attributeId                   Int                             @map("attribute_id")
+  nameUz                        String                          @map("name_uz")
+  nameRu                        String                          @map("name_ru")
+  skuCode                       String?                         @map("sku_code")
+  attribute                     ProductCustomAttribute          @relation(fields: [attributeId], references: [id])
+  ProductVariantCustomAttribute ProductVariantCustomAttribute[]
+
+  @@index([attributeId])
+  @@map("product_custom_attribute_values")
+}
+
+model ProductImage {
+  id               Int             @id @default(autoincrement())
+  productId        Int             @map("product_id")
+  imageUrl         String          @map("image_url")
+  blurUrl          String?         @map("blur_url")
+  width            Int?
+  height           Int?
+  isPrimary        Boolean         @default(false) @map("is_primary")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  attributeValueId Int?            @map("attribute_value_id")
+  position         Int             @default(0)
+  variantId        Int?            @map("variant_id")
+  product          Product         @relation(fields: [productId], references: [id])
+  variant          ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([productId])
+  @@index([productId, attributeValueId])
+  @@map("product_images")
+}
+
+model Warehouse {
+  id        Int                    @id @default(autoincrement())
+  name      String
+  locations Location[]
+  stocks    ProductStock[]
+  moves     ProductStockMovement[]
+
+  @@map("warehouses")
+}
+
+model ProductVariant {
+  id               Int                             @id @default(autoincrement())
+  productId        Int                             @map("product_id")
+  sku              String?
+  priceUzs         BigInt                          @default(0) @map("price_uzs")
+  status           Int                             @default(1)
+  createdAt        DateTime                        @default(now()) @map("created_at")
+  updatedAt        DateTime                        @default(now()) @map("updated_at")
+  discountFixedUzs BigInt                          @default(0) @map("discount_fixed_uzs")
+  mxikCode         String?                         @map("mxik_code")
+  barcode          String?                         @unique
+  cartItems        CartItem[]
+  orderItems       OrderItem[]
+  images           ProductImage[]
+  attributes       ProductVariantAttribute[]
+  customAttributes ProductVariantCustomAttribute[]
+  product          Product                         @relation(fields: [productId], references: [id])
+
+  @@unique([productId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductVariantAttribute {
+  variantId   Int            @map("variant_id")
+  attributeId Int            @map("attribute_id")
+  valueId     Int            @map("value_id")
+  attribute   Attribute      @relation(fields: [attributeId], references: [id])
+  value       AttributeValue @relation(fields: [valueId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@id([variantId, attributeId])
+  @@unique([variantId, valueId])
+  @@map("product_variant_attributes")
+}
+
+model ProductVariantCustomAttribute {
+  variantId   Int                         @map("variant_id")
+  attributeId Int                         @map("attribute_id")
+  valueId     Int                         @map("value_id")
+  attribute   ProductCustomAttribute      @relation(fields: [attributeId], references: [id])
+  value       ProductCustomAttributeValue @relation(fields: [valueId], references: [id])
+  variant     ProductVariant              @relation(fields: [variantId], references: [id])
+
+  @@id([variantId, attributeId])
+  @@unique([variantId, valueId])
+  @@map("product_variant_custom_attributes")
+}
+
+model ProductStock {
+  productId   Int       @map("product_id")
+  warehouseId Int       @map("warehouse_id")
+  quantity    Int       @default(0)
+  updatedAt   DateTime? @map("updated_at")
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@id([productId, warehouseId])
+  @@map("product_stock")
+}
+
+model ProductStockMovement {
+  id             Int       @id @default(autoincrement())
+  productId      Int       @map("product_id")
+  warehouseId    Int       @map("warehouse_id")
+  changeQty      Int       @map("change_qty")
+  reason         String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  fromLocationId Int?      @map("from_location_id")
+  toLocationId   Int?      @map("to_location_id")
+  fromLocation   Location? @relation("MovementFromLocation", fields: [fromLocationId], references: [id])
+  product        Product   @relation(fields: [productId], references: [id])
+  toLocation     Location? @relation("MovementToLocation", fields: [toLocationId], references: [id])
+  warehouse      Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@map("product_stock_movements")
+}
+
+model Location {
+  id            Int                    @id @default(autoincrement())
+  warehouseId   Int
+  code          String                 @unique
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
+  products      ProductLocation[]
+  movementsFrom ProductStockMovement[] @relation("MovementFromLocation")
+  movementsTo   ProductStockMovement[] @relation("MovementToLocation")
+
+  @@index([warehouseId])
+  @@map("locations")
+}
+
+model ProductLocation {
+  productId  Int
+  locationId Int
+  qty        Int      @default(0)
+  location   Location @relation(fields: [locationId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@id([productId, locationId])
+  @@index([locationId])
+  @@index([productId])
+  @@map("product_locations")
+}
+
+model ShippingAddress {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  recipientName String   @map("recipient_name")
+  phone         String
+  addressLine1  String   @map("address_line1")
+  addressLine2  String?  @map("address_line2")
+  cityId        Int?     @map("city_id")
+  regionId      Int?     @map("region_id")
+  postalCode    String?  @map("postal_code")
+  deliveryNote  String?  @map("delivery_note")
+  createdAt     DateTime @default(now()) @map("created_at")
+  city          City?    @relation(fields: [cityId], references: [id])
+  region        Region?  @relation(fields: [regionId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("shipping_addresses")
+}
+
+model Region {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  nameUz          String?           @map("name_uz")
+  nameRu          String?           @map("name_ru")
+  cities          City[]
+  ShippingAddress ShippingAddress[]
+
+  @@map("regions")
+}
+
+model City {
+  id              Int               @id @default(autoincrement())
+  regionId        Int?              @map("region_id")
+  name            String
+  nameUz          String?           @map("name_uz")
+  nameRu          String?           @map("name_ru")
+  region          Region?           @relation(fields: [regionId], references: [id])
+  ShippingAddress ShippingAddress[]
+
+  @@index([regionId])
+  @@map("cities")
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @map("user_id")
+  status    String     @default("active")
+  createdAt DateTime   @default(now()) @map("created_at")
+  items     CartItem[]
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        Int             @id @default(autoincrement())
+  cartId    Int             @map("cart_id")
+  productId Int             @map("product_id")
+  quantity  Int             @default(1)
+  createdAt DateTime        @default(now()) @map("created_at")
+  variantId Int?            @map("variant_id")
+  cart      Cart            @relation(fields: [cartId], references: [id])
+  product   Product         @relation(fields: [productId], references: [id])
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, productId, variantId])
+  @@map("cart_items")
+}
+
+model Wishlist {
+  id        Int            @id @default(autoincrement())
+  userId    Int            @unique @map("user_id")
+  createdAt DateTime       @default(now()) @map("created_at")
+  items     WishlistItem[]
+  user      User           @relation(fields: [userId], references: [id])
+
+  @@map("wishlists")
+}
+
+model WishlistItem {
+  wishlistId Int      @map("wishlist_id")
+  productId  Int      @map("product_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  product    Product  @relation(fields: [productId], references: [id])
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
+
+  @@id([wishlistId, productId])
+  @@map("wishlist_items")
+}
+
+model PromoCode {
+  id          Int               @id @default(autoincrement())
+  code        String            @unique
+  type        String
+  value       BigInt
+  minSubtotal BigInt?           @map("min_subtotal")
+  startsAt    DateTime?         @map("starts_at")
+  endsAt      DateTime?         @map("ends_at")
+  isActive    Boolean           @default(true) @map("is_active")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  Order       Order[]
+  redemptions PromoRedemption[]
+
+  @@map("promo_codes")
+}
+
+model Order {
+  id               Int               @id @default(autoincrement())
+  userId           Int               @map("user_id")
+  status           String            @default("pending")
+  paymentMethod    String            @map("payment_method")
+  currency         String            @default("UZS")
+  shipToName       String            @map("ship_to_name")
+  shipPhone        String            @map("ship_phone")
+  shipAddress1     String            @map("ship_address1")
+  shipAddress2     String?           @map("ship_address2")
+  shipCity         String            @map("ship_city")
+  shipRegion       String?           @map("ship_region")
+  shipPostal       String?           @map("ship_postal")
+  deliveryNote     String?           @map("delivery_note")
+  subtotalUzs      BigInt            @map("subtotal_uzs")
+  discountTotalUzs BigInt            @default(0) @map("discount_total_uzs")
+  deliveryFeeUzs   BigInt            @default(0) @map("delivery_fee_uzs")
+  totalAmountUzs   BigInt            @map("total_amount_uzs")
+  promoId          Int?              @map("promo_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime?         @map("updated_at")
+  delivery         Delivery?
+  items            OrderItem[]
+  promo            PromoCode?        @relation(fields: [promoId], references: [id])
+  user             User              @relation("OrderUser", fields: [userId], references: [id])
+  promoUses        PromoRedemption[]
+  reviews          OrderItemReview[]
+
+  referrerBonusApplied Decimal    @default(0.00) @map("referrer_bonus_applied")
+  referrerId           Int?       @map("referrer_id")
+  referrer             User?      @relation("OrderReferrer", fields: [referrerId], references: [id], onDelete: SetNull)
+  Referral             Referral[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            Int              @id @default(autoincrement())
+  orderId       Int              @map("order_id")
+  productId     Int              @map("product_id")
+  quantity      Int
+  unitPriceUzs  BigInt           @map("unit_price_uzs")
+  totalPriceUzs BigInt           @map("total_price_uzs")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  variantId     Int?             @map("variant_id")
+  order         Order            @relation(fields: [orderId], references: [id])
+  product       Product          @relation(fields: [productId], references: [id])
+  variant       ProductVariant?  @relation(fields: [variantId], references: [id])
+  review        OrderItemReview?
+
+  @@index([orderId, productId])
+  @@index([orderId, variantId])
+  @@map("order_items")
+}
+
+model OrderItemReview {
+  id                   Int                    @id @default(autoincrement())
+  orderItemId          Int                    @unique @map("order_item_id")
+  orderId              Int                    @map("order_id")
+  productId            Int                    @map("product_id")
+  userId               Int                    @map("user_id")
+  overallRating        Int?                   @map("overall_rating")
+  qualityRating        Int                    @map("quality_rating")
+  serviceRating        Int                    @map("service_rating")
+  deliveryRating       Int                    @map("delivery_rating")
+  advantages           String?                @map("advantages") @db.Text
+  disadvantages        String?                @map("disadvantages") @db.Text
+  comment              String?                @db.Text
+  isAnonymous          Boolean                @default(false) @map("is_anonymous")
+  sellerReadAt         DateTime?              @map("seller_read_at")
+  sellerReply          String?                @map("seller_reply") @db.Text
+  sellerReplyCreatedAt DateTime?              @map("seller_reply_created_at")
+  sellerReplyUpdatedAt DateTime?              @map("seller_reply_updated_at")
+  sellerReplyAuthorId  Int?                   @map("seller_reply_author_id")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  orderItem            OrderItem              @relation(fields: [orderItemId], references: [id])
+  order                Order                  @relation(fields: [orderId], references: [id])
+  product              Product                @relation(fields: [productId], references: [id])
+  user                 User                   @relation(fields: [userId], references: [id])
+  sellerReplyAuthor    User?                  @relation("SellerReplyAuthor", fields: [sellerReplyAuthorId], references: [id])
+  images               OrderItemReviewImage[]
+
+  @@index([productId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([sellerReplyAuthorId])
+  @@index([createdAt])
+  @@map("order_item_reviews")
+}
+
+model OrderItemReviewImage {
+  id        Int             @id @default(autoincrement())
+  reviewId  Int             @map("review_id")
+  fileId    Int?            @map("file_id")
+  imageUrl  String?         @map("image_url")
+  position  Int             @default(0)
+  createdAt DateTime        @default(now()) @map("created_at")
+  review    OrderItemReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  file      File?           @relation(fields: [fileId], references: [id])
+
+  @@unique([reviewId, position])
+  @@index([reviewId])
+  @@index([fileId])
+  @@map("order_item_review_images")
+}
+
+model PromoRedemption {
+  id                Int       @id @default(autoincrement())
+  promoId           Int       @map("promo_id")
+  userId            Int       @map("user_id")
+  orderId           Int       @map("order_id")
+  discountAmountUzs BigInt    @map("discount_amount_uzs")
+  usedAt            DateTime  @default(now()) @map("used_at")
+  order             Order     @relation(fields: [orderId], references: [id])
+  promo             PromoCode @relation(fields: [promoId], references: [id])
+  user              User      @relation(fields: [userId], references: [id])
+
+  @@unique([promoId, userId, orderId])
+  @@map("promo_redemptions")
+}
+
+model Delivery {
+  id           Int       @id @default(autoincrement())
+  orderId      Int       @unique @map("order_id")
+  courierName  String    @default("Owner") @map("courier_name")
+  courierPhone String?   @map("courier_phone")
+  status       String    @default("assigned")
+  assignedAt   DateTime? @map("assigned_at")
+  deliveredAt  DateTime? @map("delivered_at")
+  failReason   String?   @map("fail_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  order        Order     @relation(fields: [orderId], references: [id])
+
+  @@index([status])
+  @@map("deliveries")
+}
+
+model OtpCode {
+  id               Int       @id @default(autoincrement())
+  userId           Int?      @map("user_id")
+  code             String
+  purpose          String    @default("login")
+  expiresAt        DateTime  @map("expires_at")
+  usedAt           DateTime?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deliveryError    String?   @map("delivery_error")
+  deliveryStatus   String?   @map("delivery_status")
+  gatewayMessageId String?   @map("gateway_message_id")
+  provider         String    @default("telegram_gateway")
+  attempts         Int       @default(0)
+  user             User?     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("otp_codes")
+}
+
+model UserSession {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  token      String    @unique
+  deviceInfo String?   @map("device_info")
+  lastSeen   DateTime? @map("last_seen")
+  revokedAt  DateTime? @map("revoked_at")
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([lastSeen])
+  @@map("user_sessions")
+}
+
+/// User feedback for items they searched but couldn't find
+model NotFoundFeedback {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  query     String
+  pageUrl   String?  @map("page_url")
+  userAgent String?  @map("user_agent")
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("not_found_feedback")
+}
+
+/// WebAuthn credentials registered by users for passkey authentication
+model WebAuthnCredential {
+  id             Int       @id @default(autoincrement())
+  userId         Int       @map("user_id")
+  credentialId   String    @unique @map("credential_id")
+  publicKey      String    @map("public_key")
+  counter        Int       @default(0)
+  transports     String?
+  aaguid         String?
+  backupEligible Boolean?  @map("backup_eligible")
+  backupState    Boolean?  @map("backup_state")
+  deviceType     String?   @map("device_type")
+  lastUsedAt     DateTime? @map("last_used_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+enum FinanceTransactionType {
+  SALE
+  WITHDRAWAL
+  SERVICE_FEE
+  RETURN
+  ADJUSTMENT
+}
+
+enum FinanceTransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model FinanceTransaction {
+  id               Int                      @id @default(autoincrement())
+  sellerId         Int                      @map("seller_id")
+  type             FinanceTransactionType   @map("type")
+  status           FinanceTransactionStatus @default(PROCESSING) @map("status")
+  amount           BigInt                   @map("amount")
+  currency         String                   @default("UZS") @map("currency")
+  description      String?                  @map("description") @db.Text
+  orderNumber      String?                  @map("order_number")
+  sku              String?                  @map("sku")
+  productName      String?                  @map("product_name")
+  quantity         Int?                     @map("quantity")
+  unitPrice        BigInt?                  @map("unit_price")
+  totalPrice       BigInt?                  @map("total_price")
+  netAmount        BigInt?                  @map("net_amount")
+  commissionAmount BigInt?                  @map("commission_amount")
+  withdrawnAmount  BigInt?                  @map("withdrawn_amount")
+  occurredAt       DateTime                 @default(now()) @map("occurred_at")
+  availableAt      DateTime?                @map("available_at")
+  completedAt      DateTime?                @map("completed_at")
+  metadata         Json?                    @map("metadata")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  seller           Seller                   @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, type, status])
+  @@index([sellerId, occurredAt])
+  @@map("finance_transactions")
+}
