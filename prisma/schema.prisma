@@ -1,5 +1,5 @@
 generator client {
-  provider      = "prisma-client-js"
+  provider = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
@@ -95,26 +95,19 @@ enum ReferralStatus {
 }
 
 model Seller {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @map("user_id")
-  storeName   String   @unique @map("store_name")
-  slug        String   @unique
-  skuPrefix   String   @unique @map("sku_prefix")
-  description String?
-  storeNameUz String?  @map("store_name_uz")
-  storeNameRu String?  @map("store_name_ru")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  avatarUrl     String? @map("avatar_url")
-  avatarBlurUrl String? @map("avatar_blur_url")
-  coverUrl      String? @map("cover_url")
-  coverBlurUrl  String? @map("cover_blur_url")
-
-  avatarMediaId     String? @map("avatar_media_id")
-  avatarBlurMediaId String? @map("avatar_blur_media_id")
-  coverMediaId      String? @map("cover_media_id")
-  coverBlurMediaId  String? @map("cover_blur_media_id")
-
+  id                  Int                  @id @default(autoincrement())
+  userId              Int                  @map("user_id")
+  storeName           String               @unique @map("store_name")
+  slug                String               @unique
+  skuPrefix           String               @unique @map("sku_prefix")
+  description         String?
+  storeNameUz         String?              @map("store_name_uz")
+  storeNameRu         String?              @map("store_name_ru")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  avatarUrl           String?              @map("avatar_url")
+  avatarBlurUrl       String?              @map("avatar_blur_url")
+  coverUrl            String?              @map("cover_url")
+  coverBlurUrl        String?              @map("cover_blur_url")
   products            Product[]
   user                User                 @relation("UserSellers", fields: [userId], references: [id])
   selectedByUsers     User[]               @relation("SelectedSeller")
@@ -273,7 +266,6 @@ model AttributeValue {
 model File {
   id           Int                    @id @default(autoincrement())
   url          String
-  fileMediaId  String?                @map("file_media_id")
   filename     String
   size         Int
   mimetype     String
@@ -356,15 +348,10 @@ model ProductCustomAttributeValue {
 }
 
 model ProductImage {
-  id        Int @id @default(autoincrement())
-  productId Int @map("product_id")
-
-  imageUrl String  @map("image_url")
-  blurUrl  String? @map("blur_url")
-
-  imageMediaId String? @map("image_media_id")
-  blurMediaId  String? @map("blur_media_id")
-
+  id               Int             @id @default(autoincrement())
+  productId        Int             @map("product_id")
+  imageUrl         String          @map("image_url")
+  blurUrl          String?         @map("blur_url")
   width            Int?
   height           Int?
   isPrimary        Boolean         @default(false) @map("is_primary")
@@ -695,16 +682,14 @@ model OrderItemReview {
 }
 
 model OrderItemReviewImage {
-  id       Int     @id @default(autoincrement())
-  reviewId Int     @map("review_id")
-  fileId   Int?    @map("file_id")
-  imageUrl String? @map("image_url")
-
-  imageMediaId String?         @map("image_media_id")
-  position     Int             @default(0)
-  createdAt    DateTime        @default(now()) @map("created_at")
-  review       OrderItemReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  file         File?           @relation(fields: [fileId], references: [id])
+  id        Int             @id @default(autoincrement())
+  reviewId  Int             @map("review_id")
+  fileId    Int?            @map("file_id")
+  imageUrl  String?         @map("image_url")
+  position  Int             @default(0)
+  createdAt DateTime        @default(now()) @map("created_at")
+  review    OrderItemReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  file      File?           @relation(fields: [fileId], references: [id])
 
   @@unique([reviewId, position])
   @@index([reviewId])

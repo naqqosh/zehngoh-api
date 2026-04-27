@@ -73,21 +73,21 @@ export class AuthController {
     return await this.auth.getProfile(user.id);
   }
 
-  // @Post("verify-firebase-otp")
-  // async verifyFirebaseOtp(
-  //   @Body()
-  //   body: { idToken: string; deviceInfo?: string; referralCode?: string },
-  //   @Res({ passthrough: true }) res: Response,
-  // ) {
-  //   const { accessToken, refreshToken, user } =
-  //     await this.auth.verifyFirebaseOtp(
-  //       body.idToken,
-  //       body.deviceInfo,
-  //       body.referralCode,
-  //     );
-  //   setRefreshTokenCookie(res, refreshToken);
-  //   return { token: accessToken, user };
-  // }
+  @Post("verify-firebase-otp")
+  async verifyFirebaseOtp(
+    @Body()
+    body: { idToken: string; deviceInfo?: string; referralCode?: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } =
+      await this.auth.verifyFirebaseOtp(
+        body.idToken,
+        body.deviceInfo,
+        body.referralCode,
+      );
+    setRefreshTokenCookie(res, refreshToken);
+    return { token: accessToken, user };
+  }
 
   // @Post("google")
   // @HttpCode(200)

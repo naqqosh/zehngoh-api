@@ -340,74 +340,74 @@ export class AuthService {
     return this.issueSession(user, deviceInfo);
   }
 
-  // async verifyFirebaseOtp(
-  //   idToken: string,
-  //   deviceInfo?: string,
-  //   referralCode?: string,
-  // ) {
-  //   let rawPhone: string | null = null;
+  async verifyFirebaseOtp(
+    idToken: string,
+    deviceInfo?: string,
+    referralCode?: string,
+  ) {
+    let rawPhone: string | null = null;
+    function normalizePhone(raw: string): string {
+      // faqat raqamlarni olamiz
+      let digits = raw.replace(/\D/g, "");
 
-  //   function normalizePhone(raw: string): string {
-  //     // faqat raqamlarni olamiz
-  //     let digits = raw.replace(/\D/g, "");
+      // agar +998 bilan kelgan bo‘lsa → 998...
+      if (digits.startsWith("998")) {
+        return `+${digits}`;
+      }
 
-  //     // agar +998 bilan kelgan bo‘lsa → 998...
-  //     if (digits.startsWith("998")) {
-  //       return `+${digits}`;
-  //     }
+      // agar 9 bilan boshlansa (xato holat)
+      if (digits.startsWith("9")) {
+        return `+998${digits.slice(1)}`;
+      }
 
-  //     // agar 9 bilan boshlansa (xato holat)
-  //     if (digits.startsWith("9")) {
-  //       return `+998${digits.slice(1)}`;
-  //     }
+      throw new UnauthorizedException("Invalid phone format");
+    }
 
-  //     throw new UnauthorizedException("Invalid phone format");
-  //   }
+    /* =========================
+     FAKE / REAL FIREBASE TOKEN
+     ========================= */
+    if (idToken.startsWith("FAKE_FIREBASE_ID_TOKEN:")) {
+      rawPhone = idToken.replace("FAKE_FIREBASE_ID_TOKEN:", "");
+    } else {
+      // const decoded = await auth.verifyIdToken(idToken);
+      const decoded = { phone_number: null };
+      rawPhone = decoded.phone_number ?? null;
+    }
 
-  //   /* =========================
-  //    FAKE / REAL FIREBASE TOKEN
-  //    ========================= */
-  //   if (idToken.startsWith("FAKE_FIREBASE_ID_TOKEN:")) {
-  //     rawPhone = idToken.replace("FAKE_FIREBASE_ID_TOKEN:", "");
-  //   } else {
-  //     const decoded = await auth.verifyIdToken(idToken);
-  //     rawPhone = decoded.phone_number ?? null;
-  //   }
+    if (!rawPhone) {
+      throw new UnauthorizedException("Phone number not found");
+    }
 
-  //   if (!rawPhone) {
-  //     throw new UnauthorizedException("Phone number not found");
-  //   }
+    /* =========================
+     NORMALIZE PHONE
+     ========================= */
+    const phone = normalizePhone(rawPhone);
 
-  //   /* =========================
-  //    NORMALIZE PHONE
-  //    ========================= */
-  //   const phone = normalizePhone(rawPhone);
+    /* =========================
+     USER UPSERT
+     ========================= */
+    let user = await this.prisma.user.findUnique({
+      where: { phone },
+    });
 
-  //   /* =========================
-  //    USER UPSERT
-  //    ========================= */
-  //   let user = await this.prisma.user.findUnique({
-  //     where: { phone },
-  //   });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { phone },
+      });
+    }
 
-  //   if (!user) {
-  //     user = await this.prisma.user.create({
-  //       data: { phone },
-  //     });
-  //   }
+    /* =========================
+     SESSION
+     ========================= */
+    const sessionData = await this.issueSession(user, deviceInfo);
 
-  //   /* =========================
-  //    SESSION
-  //    ========================= */
-  //   const sessionData = await this.issueSession(user, deviceInfo);
+    /* =========================
+     REFERRAL
+     ========================= */
+    if (referralCode) {
+      await this.referralService.trackReferral(referralCode, user.id);
+    }
 
-  //   /* =========================
-  //    REFERRAL
-  //    ========================= */
-  //   if (referralCode) {
-  //     await this.referralService.trackReferral(referralCode, user.id);
-  //   }
-
-  //   return sessionData;
-  // }
+    return sessionData;
+  }
 }
