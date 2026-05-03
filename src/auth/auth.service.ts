@@ -250,6 +250,29 @@ export class AuthService {
     return { id: user.id, phone: user.phone, fullName: user.fullName ?? null };
   }
 
+  /**
+   * Find or create user by Telegram user info (from mini app initData)
+   */
+  async findOrCreateTelegramUser() {
+    // Use telegramId as unique identifier
+    // let user = await this.prisma.user.findFirst({
+    //   where: { telegramId: telegramUser.id },
+    // });
+    // if (!user) {
+    //   user = await this.prisma.user.create({
+    //     data: {
+    //       telegramId: telegramUser.id,
+    //       fullName: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || null,
+    //       username: telegramUser.username || null,
+    //       photoUrl: telegramUser.photo_url || null,
+    //       isPremium: telegramUser.is_premium || false,
+    //       languageCode: telegramUser.language_code || null,
+    //     },
+    //   });
+    // }
+    // return user;
+  }
+
   // async verifyGoogle(
   //   credential: string,
   //   deviceInfo?: string,
