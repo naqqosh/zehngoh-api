@@ -1,6 +1,7 @@
 FROM node:20-alpine AS builder
 
 RUN npm i -g pnpm
+
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
@@ -15,9 +16,15 @@ RUN pnpm prune --prod
 
 FROM node:20-alpine
 
+RUN adduser -D -u 1001 api
+
 WORKDIR /app
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
+RUN chown api:api /app
+
+COPY --from=builder --chown=api:api /app/dist ./dist
+COPY --from=builder --chown=api:api /app/node_modules ./node_modules
+
+USER api
 
 CMD ["node", "dist/main.js"]
