@@ -7,6 +7,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { OrderBotGateway } from "../bot/order-bot.gateway";
+import { DateTime } from "luxon";
 
 @Injectable()
 export class OrdersService {
@@ -43,6 +44,7 @@ export class OrdersService {
         shipToName: true,
         shipPhone: true,
         createdAt: true,
+        deliveryFeeUzs: true,
         items: {
           select: {
             productId: true,
@@ -70,6 +72,7 @@ export class OrdersService {
       id: order.id,
       status: order.status,
       totalAmountUzs: order.totalAmountUzs.toString(),
+      deliveryFeeUzs: order.deliveryFeeUzs.toString(),
       items: order.items.map((i: any) => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -114,7 +117,7 @@ export class OrdersService {
     const subtotal = itemsData.reduce((s, i) => s + i.totalPriceUzs, 0);
 
     // TODO: promo validation if provided
-    let promoId: number | undefined;
+    // let promoId: number | undefined;
     let discount = 0;
     // if (dto.promoCode) {
     //   const promo = await this.prisma.promoCode.findFirst({
@@ -126,7 +129,20 @@ export class OrdersService {
     //     if (promo.type === 'percent') discount = Math.floor((Number(promo.value) * subtotal) / 100)
     //   }
     // }
-    const deliveryFee = 4000; // per UI mock currently free
+    const FREE_SHIPPING_THRESHOLD = 50000;
+    const now = DateTime.now().setZone("Asia/Tashkent");
+    const start = now.set({ hour: 8, minute: 30, second: 0 });
+    const end = now.set({ hour: 17, minute: 0, second: 0 });
+
+    const isWorkingTime = now >= start && now <= end;
+
+    const deliveryFee =
+      subtotal - discount >= FREE_SHIPPING_THRESHOLD
+        ? 0
+        : isWorkingTime
+          ? 4000
+          : 5000;
+
     const total = Math.max(0, subtotal - discount + deliveryFee);
 
     const order = await this.prisma.order.create({
