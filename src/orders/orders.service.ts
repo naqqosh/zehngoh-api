@@ -44,6 +44,7 @@ export class OrdersService {
         shipToName: true,
         shipPhone: true,
         createdAt: true,
+        deliveryFeeUzs: true,
         items: {
           select: {
             productId: true,
@@ -71,6 +72,7 @@ export class OrdersService {
       id: order.id,
       status: order.status,
       totalAmountUzs: order.totalAmountUzs.toString(),
+      deliveryFeeUzs: order.deliveryFeeUzs.toString(),
       items: order.items.map((i: any) => ({
         productId: i.productId,
         quantity: i.quantity,
