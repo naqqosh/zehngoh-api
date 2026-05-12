@@ -1,4 +1,4 @@
-import * as dayjs from "dayjs";
+import dayjs from "dayjs";
 
 const NUMBER_FORMAT = new Intl.NumberFormat("uz-UZ");
 

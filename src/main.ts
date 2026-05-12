@@ -1,12 +1,12 @@
-import * as dotenv from "dotenv";
+import dotenv from "dotenv";
 dotenv.config();
 
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
-import * as cookieParser from "cookie-parser";
-import * as express from "express";
+import cookieParser from "cookie-parser";
+import express from "express";
 import { join } from "path";
 
 async function bootstrap() {

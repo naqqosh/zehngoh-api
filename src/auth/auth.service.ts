@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
-import * as dayjs from "dayjs";
+import dayjs from "dayjs";
 import { TelegramGatewayService } from "./telegram-gateway.service";
 import { createHash, randomBytes } from "crypto";
 import type { User } from "@prisma/client";
