@@ -14,6 +14,7 @@ import { ReviewsModule } from "./reviews/reviews.module";
 import { UploadModule } from "./upload/upload.module";
 import { ShopsModule } from "./shops/shops.module";
 import { BotModule } from "./bot/bot.module";
+import { ZehngohBotModule } from "./zbot/zbot.module";
 import { ReferralModule } from "./referral/referral.module";
 
 @Module({
@@ -35,6 +36,7 @@ import { ReferralModule } from "./referral/referral.module";
     ShopsModule,
     BotModule,
     ReferralModule,
+    ZehngohBotModule,
   ],
 })
 export class AppModule {}
