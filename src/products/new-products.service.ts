@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 @Injectable()
 export class NewProductsService {
   // Hardcoded new product IDs
-  private readonly newProductIds = [318, 24, 317, 318, 316]; // Example IDs
+  private readonly newProductIds = [319, 24, 317, 318, 316, 139];
 
   constructor(private prisma: PrismaService) {}
 
