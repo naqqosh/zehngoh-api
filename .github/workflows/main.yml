@@ -19,6 +19,7 @@ jobs:
           echo ${{ github.repository_owner }}
           pwd
           ls -la
+          echo ${{ github.repository }}
 
       - run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
