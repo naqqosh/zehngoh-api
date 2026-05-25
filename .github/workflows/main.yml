@@ -15,9 +15,9 @@ jobs:
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
       - run: |
-          docker build
-          -t ${{ vars.USER_API_IMAGE_NAME }}:latest
-          -t ${{ vars.USER_API_IMAGE_NAME }}:${{ github.sha }}
+          docker build \
+          -t ${{ vars.USER_API_IMAGE_NAME }}:latest \
+          -t ${{ vars.USER_API_IMAGE_NAME }}:${{ github.sha }} \
           ./
 
       - run: |
