@@ -1,4 +1,4 @@
-name: Image Build and Push
+name: Deploy
 
 on:
   push:
@@ -9,51 +9,10 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: docker images
-        name: show images
-
-      - run: |
-          docker build \
-          -t ${{ vars.USER_API_IMAGE_NAME }}:latest \
-          -t ${{ vars.USER_API_IMAGE_NAME }}:${{ github.sha }} \
-          ./
-
-      - run: |
-          docker push ${{ vars.USER_API_IMAGE_NAME }}:latest
-          docker push ${{ vars.USER_API_IMAGE_NAME }}:${{ github.sha }}
-
-      - run: echo "Image pushed successfully"
-
   deploy:
-    runs-on: ubuntu-latest
-    needs: build
+    uses: naqqosh/zehngoh-ui/.github/workflows/docker-build-deploy.yml@main
 
-    steps:
-      - uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            set -e
+    with:
+      image_name: ${{ vars.USER_API_IMAGE_NAME }}
 
-            cd zehngoh-infra
-
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
-
-      - run: echo "Deployed successfully"
+    secrets: inherit
