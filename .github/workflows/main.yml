@@ -3,6 +3,11 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "ASSUMPTIONS.md"
+      - ".env.example"
+      - "pnpm-workspace.yaml"
 
 permissions:
   contents: read
