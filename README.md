@@ -22,12 +22,14 @@ Backend service for Zehngoh local commerce platform.
 
 ## Architecture
 
+```markdown
 src/
 ├── modules
 ├── common
 ├── prisma
 ├── config
 └── main.ts
+```
 
 ## Database
 
