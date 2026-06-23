@@ -1,10 +1,11 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 RUN npm i -g pnpm
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
@@ -14,7 +15,7 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 
-FROM node:20-alpine
+FROM node:22-alpine
 
 RUN adduser -D -u 1001 api
 
