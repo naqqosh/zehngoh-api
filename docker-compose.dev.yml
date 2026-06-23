@@ -1,0 +1,28 @@
+name: Dev dependencies
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgresql
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - 127.0.0.1:5432:5432
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "psql -U myuser -d market_db -c 'SELECT 1' > /dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 14s
+    logging:
+      driver: json-file
+      options:
+        max-size: "2m"
+        max-file: "3"
